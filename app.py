@@ -5,13 +5,13 @@ import io
 import re
 from pathlib import Path
 from typing import Any
+from html.parser import HTMLParser
 
 import numpy as np
 import pandas as pd
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
-from bs4 import BeautifulSoup
 
 # -----------------------------------------------------------------------------
 # EQUEST / DEVEXPRESS SAHİP İSTATİSTİK ANALİZİ
@@ -101,46 +101,85 @@ def to_number(value: Any) -> float:
         return np.nan
 
 
+class _EquestTableParser(HTMLParser):
+    """Extract table rows using Python's standard library (no bs4 needed)."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.rows: list[tuple[str, list[str]]] = []
+        self._table_depth = 0
+        self._in_target_table = False
+        self._row_id = ""
+        self._cells: list[str] = []
+        self._cell_parts: list[str] | None = None
+        self._target_table_seen = False
+
+    def handle_starttag(self, tag: str, attrs) -> None:
+        attrs_dict = dict(attrs)
+        if tag == "table":
+            self._table_depth += 1
+            if attrs_dict.get("id") == "gridIstatistikSahip_DXMainTable":
+                self._in_target_table = True
+                self._target_table_seen = True
+        elif tag == "tr" and (self._in_target_table or not self._target_table_seen):
+            self._row_id = attrs_dict.get("id", "") or ""
+            self._cells = []
+        elif tag == "td" and (self._in_target_table or not self._target_table_seen):
+            self._cell_parts = []
+
+    def handle_data(self, data: str) -> None:
+        if self._cell_parts is not None:
+            self._cell_parts.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "td" and self._cell_parts is not None:
+            value = clean_text(" ".join(self._cell_parts))
+            self._cells.append(value)
+            self._cell_parts = None
+        elif tag == "tr" and (self._in_target_table or not self._target_table_seen):
+            if self._cells:
+                self.rows.append((self._row_id, self._cells[:]))
+            self._row_id = ""
+            self._cells = []
+        elif tag == "table":
+            if self._table_depth > 0:
+                self._table_depth -= 1
+            if self._in_target_table and self._table_depth == 0:
+                self._in_target_table = False
+
+
 def parse_equest_html(raw: str, source_name: str = "HTML") -> pd.DataFrame:
     """Parse DevExpress callback/full-page HTML containing gridIstatistikSahip."""
-    soup = BeautifulSoup(raw, "html.parser")
-    table = soup.find("table", id="gridIstatistikSahip_DXMainTable")
+    parser = _EquestTableParser()
+    parser.feed(raw)
+    parser.close()
 
-    # Some saved responses contain the grid table without its original ID.
-    if table is None:
-        for candidate in soup.find_all("table"):
-            if candidate.find("tr", id=re.compile(r"gridIstatistikSahip_DXDataRow")):
-                table = candidate
-                break
-    if table is None:
-        raise ValueError(
-            "Dosyada gridIstatistikSahip_DXMainTable bulunamadı. "
-            "Equest'in Sahip İstatistikleri tablosunun HTML/response içeriğini yükleyin."
-        )
+    # Prefer rows explicitly belonging to the target DevExpress grid.
+    data_rows = [
+        cells for row_id, cells in parser.rows
+        if re.fullmatch(r"gridIstatistikSahip_DXDataRow\d+", row_id)
+    ]
+    # Some callback fragments omit row IDs; use the nine-column data rows.
+    if not data_rows:
+        data_rows = [cells for _, cells in parser.rows if len(cells) >= 9]
 
     records: list[dict[str, Any]] = []
-    data_rows = table.find_all("tr", id=re.compile(r"gridIstatistikSahip_DXDataRow\d+"))
-    if not data_rows:
-        data_rows = [
-            tr for tr in table.find_all("tr")
-            if len(tr.find_all("td", recursive=False)) >= 9
-        ]
-
-    for tr in data_rows:
-        cells = tr.find_all("td", recursive=False)
+    for cells in data_rows:
         if len(cells) < 9:
             continue
-        values = [clean_text(cell.get_text(" ", strip=True)) for cell in cells[:9]]
+        values = [clean_text(value) for value in cells[:9]]
         if not values[0] or not values[1]:
             continue
         record = dict(zip(FIELD_KEYS, values))
-        # Skip accidental header/footer rows.
         if record["ATADI"].lower() in {"atın adı", "at adi", "atadi"}:
             continue
         records.append(record)
 
     if not records:
-        raise ValueError("HTML içinde okunabilir at/sahip satırı bulunamadı.")
+        raise ValueError(
+            "Dosyada gridIstatistikSahip tablosunda okunabilir at/sahip satırı bulunamadı. "
+            "Equest'in Sahip İstatistikleri HTML/response içeriğini yükleyin."
+        )
 
     df = pd.DataFrame(records)
     for key in ["ATNO", *FACTOR_KEYS, "SAHIP_TOPLAM"]:
@@ -455,4 +494,3 @@ else:
 
 st.divider()
 st.caption("Equest HTML/response verisi üzerinden çalışır. CSS görünümü sağlar; DevExpress'in sunucu tarafı callback mekanizmasını veya erişim yetkisini taklit etmez.")
-
