@@ -88,7 +88,7 @@ div[data-testid="stRadio"] label{{color:#f5f5fb}}
 def title(icon, text, extra=""):
     st.markdown(f'<div class="panel-title"><span class="ico">{icon}</span>{text} <span class="small-muted">{extra}</span></div>', unsafe_allow_html=True)
 
-def table(df, height=300):
+def table(df, height=250):
     if df is None or len(df) == 0:
         st.caption("Gösterilecek kayıt bulunamadı.")
         return
@@ -170,7 +170,7 @@ if st.session_state.page == "Ana Sayfa":
     with center_col:
         with st.container(border=True):
             title("▥", "AGF Oranları", "(Günün Öne Çıkan Koşusu)")
-            table(pd.DataFrame(d["agf"][:20]), 780)
+            table(pd.DataFrame(d["agf"][:20]), 980)
 
     with right_col:
         with st.container(border=True):
