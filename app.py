@@ -1,5 +1,6 @@
 from pathlib import Path
 import base64
+import re
 import streamlit as st
 import pandas as pd
 from fetch import get_dashboard_data, get_race_program_data, get_race_detail
@@ -52,11 +53,12 @@ section[data-testid="stSidebar"] .stButton>button:hover{{background:#343d61!impo
 .featured-table-wrap{{border:2px solid #062b55;border-radius:10px;padding:3px;box-shadow:0 0 0 1px #fff7,0 5px 14px #0005;overflow:auto}}
 .featured-table{{border:0!important;border-collapse:separate!important;border-spacing:0!important}}
 .featured-table th{{background:#005BB3!important;color:#fff!important;font-weight:900!important;text-transform:uppercase!important;border-bottom:2px solid #062b55!important}}
-.featured-table td{{color:#101010!important;font-weight:900!important;text-transform:uppercase!important;border-bottom:1px solid #ffffff!important}}
+.featured-table td{{color:#101010!important;font-weight:900!important;font-size:14px!important;text-transform:uppercase!important;border-bottom:1px solid #ffffff!important;padding:9px 6px!important}}
 .featured-table tbody tr:nth-child(odd) td{{background:#F86A38!important}}
 .featured-table tbody tr:nth-child(even) td{{background:#F4D03F!important}}
-.featured-table tbody td:nth-child(5){{background:#029456!important;color:#050505!important}}
-.featured-table tbody td:nth-child(6){{background:#D8226C!important;color:#fff!important}}
+.featured-pill{{display:inline-block;min-width:42px;padding:4px 10px;border-radius:999px;font-size:14px;line-height:1.15;font-weight:900;text-align:center;white-space:nowrap;box-shadow:inset 0 0 0 1px #ffffff55}}
+.featured-pill.agf{{background:#029456;color:#07150f}}
+.featured-pill.ganyan{{background:#D8226C;color:#fff}}
 .data-table td:nth-child(2){{color:#c00018;font-weight:900}}
 .data-table td:nth-child(4){{color:#005BB3;font-weight:900}}
 .data-table td:nth-child(6),.data-table td:nth-child(7),.data-table td:nth-child(8){{color:#029456;font-weight:900}}
@@ -121,6 +123,22 @@ def table(df, height=300):
     is_featured = {"Son 6 Koşu", "Koşu", "AGF", "Muhtemel Ganyan"}.issubset(set(map(str, view.columns)))
     table_class = "data-table featured-table" if is_featured else "data-table"
     html = view.to_html(index=False, escape=True, border=0, classes=table_class)
+    if is_featured:
+        # AGF ve Muhtemel Ganyan hücrelerinin tamamını değil, yalnızca sayılarını elips rozetle vurgula.
+        # Satırların kendi turuncu/sarı zeminleri bütün sütunlarda aynı kalır.
+        headers = list(map(str, view.columns))
+        agf_idx = headers.index("AGF")
+        odds_idx = headers.index("Muhtemel Ganyan")
+        def badge_row(match):
+            cells = re.findall(r"<td>(.*?)</td>", match.group(0), flags=re.S)
+            rebuilt = match.group(0)
+            for idx, cls in ((agf_idx, "agf"), (odds_idx, "ganyan")):
+                if idx < len(cells):
+                    value = cells[idx]
+                    replacement = f'<td><span class="featured-pill {cls}">{value}</span></td>'
+                    rebuilt = rebuilt.replace(f"<td>{value}</td>", replacement, 1)
+            return rebuilt
+        html = re.sub(r"<tr>.*?</tr>", badge_row, html, flags=re.S)
     html = html.replace(">", ">" + colgroup, 1)
     if is_featured:
         st.markdown(f'<div class="featured-table-wrap"><div class="scroll-table" style="max-height:{height}px">{html}</div></div>', unsafe_allow_html=True)
@@ -179,6 +197,22 @@ if st.session_state.page == "Ana Sayfa":
         with st.container(border=True):
             title("♞", "Öne Çıkan Atlar ve Muhtemel Ganyan", "(En fazla 15 at)")
             featured_df = pd.DataFrame(d["featured"]).rename(columns={"K / G / Y": "Koşu"})
+            # AGF sütununu kaynak verideki AGF / AGF Oranı alanından garanti et.
+            if "AGF" not in featured_df.columns:
+                if "AGF Oranı" in featured_df.columns:
+                    featured_df["AGF"] = featured_df["AGF Oranı"]
+                else:
+                    agf_source = pd.DataFrame(d.get("agf", []))
+                    if {"At Adı", "AGF Oranı"}.issubset(agf_source.columns) and "At Adı" in featured_df.columns:
+                        agf_map = agf_source.set_index("At Adı")["AGF Oranı"]
+                        featured_df["AGF"] = featured_df["At Adı"].map(agf_map).fillna("-")
+                    else:
+                        featured_df["AGF"] = "-"
+            featured_columns = ["Sıra", "At Adı", "Son 6 Koşu", "Koşu", "AGF", "Muhtemel Ganyan"]
+            for column in featured_columns:
+                if column not in featured_df.columns:
+                    featured_df[column] = "-"
+            featured_df = featured_df[featured_columns]
             table(featured_df, 285)
 
     with center_col:
