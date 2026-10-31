@@ -19,36 +19,41 @@ st.set_page_config(page_title="GANYAN AVCISI", page_icon="🐎", layout="wide", 
 
 st.markdown(f'''<style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-:root{{--bg:#090e1d;--panel:#171d32;--line:#303958;--purple:#7942f4;--text:#f5f5fb}}
+:root{{--bg:#080e1b;--panel:#111d31;--line:#29425e;--purple:#005BB3;--blue:#005BB3;--ice:#B2DAE4;--pink:#D8226C;--orange:#F86A38;--green:#029456;--text:#f5f8ff}}
 html,body,[class*="css"]{{font-family:Inter,sans-serif}}
 .stApp{{background:radial-gradient(ellipse at 48% 0%,#17152e 0%,#0b1020 52%,#080d1b 100%);color:var(--text)}}
 [data-testid="stHeader"]{{background:transparent}}
 .block-container{{padding:.25rem 1rem 1.1rem;max-width:1900px}}
-section[data-testid="stSidebar"]{{background:linear-gradient(180deg,#171b31,#101528);border-right:1px solid #262d48;width:167px!important;min-width:167px!important;max-width:167px!important;flex:0 0 167px!important}}
-section[data-testid="stSidebar"]>div{{padding:.65rem .45rem}}
-/* Sol menü sabit: aç/kapat kontrollerini gizle */
-[data-testid="stSidebarCollapseButton"], [data-testid="collapsedControl"], button[kind="header"]{{display:none!important}}
+section[data-testid="stSidebar"]{{background:linear-gradient(180deg,#171b31,#101528);border-right:1px solid #262d48;width:167px!important;min-width:167px!important;max-width:167px!important;flex:0 0 167px!important;}}
+section[data-testid="stSidebar"]>div{{width:167px!important;min-width:167px!important;padding:.75rem .48rem}}
+/* Kenar menüsü sabit: aç/kapat ve daraltma kontrolleri gizli */
+[data-testid="stSidebarCollapseButton"], [data-testid="collapsedControl"], button[kind="header"]{{display:none!important;visibility:hidden!important}}
 section[data-testid="stSidebar"]{{transform:none!important;visibility:visible!important}}
-section[data-testid="stSidebar"] button{{width:100%;min-height:34px!important;padding:5px 7px!important;margin:2px 0!important;border-radius:8px!important;background:#202943!important;border:1px solid #394563!important;color:#f4f5fc!important;font-size:11px!important;white-space:nowrap!important}}
-section[data-testid="stSidebar"] button[kind="primary"]{{background:linear-gradient(100deg,#7138ef,#8e4dff)!important;border-color:#a17bff!important}}
-section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]{{gap:.28rem!important}}
-
+section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]{{gap:.48rem!important}}
+section[data-testid="stSidebar"] .stButton>button{{width:100%;min-height:34px!important;padding:5px 6px!important;border-radius:8px!important;background:#252d49!important;border:1px solid #3b4568!important;color:#f4f4fb!important;font-size:11.5px!important;font-weight:600!important;white-space:normal!important;line-height:1.18!important;box-shadow:0 2px 6px #0002}}
+section[data-testid="stSidebar"] .stButton>button[kind="primary"]{{background:linear-gradient(100deg,#7138ef,#8e4dff)!important;border-color:#a27aff!important}}
+section[data-testid="stSidebar"] .stButton>button:hover{{background:#343d61!important;border-color:#9a70ff!important}}
 .brand{{text-align:center;padding:7px 4px 22px;color:white;font-size:19px;font-weight:800;line-height:1.2}}
 .brand .horse{{display:block;font-size:44px;line-height:1.2;margin-bottom:6px}}
 .hero{{min-height:126px;border-radius:0 0 14px 14px;padding:14px 24px;margin:0 0 10px;background:linear-gradient(90deg,rgba(12,15,31,.98),rgba(12,15,31,.88) 40%,rgba(12,15,31,.08)),url('data:image/jpeg;base64,{MAIN_BANNER}') right center/cover no-repeat;border-bottom:1px solid #252c48;display:flex;flex-direction:column;justify-content:center}}
 .hero.program{{background-image:linear-gradient(90deg,rgba(12,15,31,.98),rgba(12,15,31,.84) 42%,rgba(12,15,31,.05)),url('data:image/jpeg;base64,{PROGRAM_BANNER}')}}
 .hero h1{{font-size:clamp(26px,2.4vw,39px);margin:0;font-weight:800;letter-spacing:-.8px;color:#f8f7ff}}
-.hero h1 .accent{{color:#9860ff}}.hero p{{margin:5px 0 0;color:#e2e4f0;font-size:15px;max-width:650px}}
+.hero h1 .accent{{color:#B2DAE4}}.hero p{{margin:5px 0 0;color:#e2e4f0;font-size:15px;max-width:650px}}
 [data-testid="stVerticalBlockBorderWrapper"]{{background:linear-gradient(145deg,#171d32f2,#11172af5);border:1px solid #303754!important;border-radius:14px!important;padding:9px 10px!important;box-shadow:0 6px 18px #0002}}
 [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"]{{gap:.42rem}}
 .panel-title{{font-size:16px;font-weight:750;margin:0 0 7px;color:#f4f3fb}}
 .panel-title .ico{{color:#a15cff;margin-right:8px}}
-.data-table{{width:100%;border-collapse:collapse;color:#f2f3fa;font-size:12px;white-space:nowrap}}
-.data-table th{{background:#272d47;color:#f0f1fa;font-weight:650;padding:7px 8px;text-align:left;position:sticky;top:0;z-index:1}}
-.data-table td{{border-bottom:1px solid #5d698f40;padding:6px 8px}}
-.data-table tr:nth-child(even) td{{background:#6e49c21c}}
-.data-table tr:hover td{{background:#7849f03d}}
-.scroll-table{{overflow:auto;max-width:100%;border-radius:9px;scrollbar-color:#777aa7 #171c30;scrollbar-width:thin}}
+.data-table{{width:100%;max-width:100%;table-layout:fixed;border-collapse:collapse;color:#B2DAE4;font-size:12px;font-weight:800;white-space:normal;text-transform:uppercase}}
+.data-table th{{background:#005BB3;color:#ffffff;font-weight:900;padding:7px 6px;text-align:left;position:sticky;top:0;z-index:1;text-transform:uppercase;overflow-wrap:anywhere}}
+.data-table td{{border-bottom:1px solid #B2DAE455;padding:6px 6px;color:#B2DAE4;font-weight:800;overflow-wrap:anywhere;word-break:normal}}
+.data-table tr:nth-child(even) td{{background:#005BB322}}
+.data-table tr:nth-child(odd) td{{background:#101d31}}
+.data-table tr:hover td{{background:#005BB366;color:#ffffff}}
+.scroll-table{{overflow:auto;max-width:100%;width:100%;border-radius:9px;scrollbar-color:#005BB3 #171c30;scrollbar-width:thin}}
+.scroll-table table{{width:100%;min-width:0}}
+.panel-title .ico{{color:#B2DAE4}}
+.result-box{{border:1px solid #005BB3;border-radius:10px;padding:9px;background:#005BB322;margin-top:8px;font-size:12px;color:#B2DAE4;font-weight:800}}
+.city-card{{border-color:#005BB366}}
 .city-card{{background:linear-gradient(145deg,#242a45,#171d32);border:1px solid #333b5b;border-radius:12px;padding:9px;min-height:178px}}
 .city-name{{font-size:13px;font-weight:750}}.city-temp{{font-size:23px;font-weight:800;margin-top:2px}}
 .city-meta{{display:flex;justify-content:space-between;border-top:1px solid #343b55;padding-top:5px;margin-top:5px;font-size:11px;color:#d7daea}}
@@ -58,12 +63,12 @@ section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]{{gap:.28rem!imp
 .stButton>button:hover{{border-color:#a36aff;color:white;background:#34245d}}
 .stButton>button[kind="primary"]{{background:linear-gradient(100deg,#7138ef,#8e4dff);border-color:#9a70ff}}
 div[data-testid="stSelectbox"] label,div[data-testid="stDateInput"] label{{color:#e9eaf5!important}}
-/* Yarış programı tarih/hipodrom filtreleri: önceki yüksekliğin yaklaşık %60'ı */
-div[data-testid="stDateInput"] input{{height:30px!important;min-height:30px!important;padding-top:2px!important;padding-bottom:2px!important;font-size:12px!important}}
-div[data-testid="stSelectbox"] [data-baseweb="select"]{{min-height:30px!important;height:30px!important;font-size:12px!important}}
-div[data-testid="stDateInput"],div[data-testid="stSelectbox"]{{margin-bottom:0!important}}
-
 div[data-testid="stSelectbox"]>div>div,div[data-testid="stDateInput"] input{{background:#202640}}
+/* Tarih ve hipodrom kontrolleri yaklaşık %40 daha kısa */
+div[data-testid="stDateInput"] input{{height:25px!important;min-height:25px!important;padding-top:0!important;padding-bottom:0!important;font-size:12px!important}}
+div[data-testid="stSelectbox"] [data-baseweb="select"]{{min-height:25px!important;height:25px!important;font-size:12px!important}}
+div[data-testid="stSelectbox"] [data-baseweb="select"]>div{{min-height:25px!important;height:25px!important}}
+div[data-testid="stDateInput"] label,div[data-testid="stSelectbox"] label{{font-size:11px!important;margin-bottom:0!important}}
 div[data-testid="stRadio"] label{{color:#f5f5fb}}
 [data-testid="stDataFrame"]{{border:1px solid #303754;border-radius:8px}}
 @media(max-width:1100px){{.block-container{{padding-left:.6rem;padding-right:.6rem}}.data-table{{font-size:11px}}}}
@@ -99,7 +104,7 @@ with st.sidebar:
 if st.session_state.page == "Ana Sayfa":
     hero()
     d = get_dashboard_data()
-    c1,c2,c3 = st.columns([1.55,1.08,1.35],gap="small")
+    c1,c2,c3 = st.columns([1.15,0.82,1.00],gap="small")
     with c1:
         with st.container(border=True):
             title("◉","Hava ve Pist Bilgileri","(En fazla 3 şehir)")
@@ -119,6 +124,7 @@ if st.session_state.page == "Ana Sayfa":
             title("🏆","Yarış Sonuçları")
             choice=st.radio("Altılı türü",["1. Altılı","2. Altılı"],horizontal=True,label_visibility="collapsed")
             result=d["results"][choice]
+            st.markdown(f'<div class="small-muted" style="font-weight:900;color:#B2DAE4;margin:2px 0 6px">ŞEHİR / HİPODROM: {result.get("city", "İSTANBUL")}</div>',unsafe_allow_html=True)
             table(pd.DataFrame(result["legs"]),205)
             st.markdown(f'<div class="result-box"><b>{choice} Sonucu:</b> {result["sequence"]}<br><b>İkramiye:</b> {result["payout"]}　|　<b>Bilen Kişi:</b> {result["winners"]}</div>',unsafe_allow_html=True)
     a,b=st.columns([1.35,1],gap="small")
@@ -130,18 +136,20 @@ if st.session_state.page == "Ana Sayfa":
         with st.container(border=True):
             title("♧","Kazanma Olasılığı Tahmini","(Örnek Model)")
             for x in d["probabilities"]:
-                st.markdown(f'<div style="display:grid;grid-template-columns:112px 1fr 45px;gap:7px;align-items:center;margin:13px 0;font-size:12px"><span>{x["horse"]}</span><div style="height:18px;border-radius:5px;background:#292e48;overflow:hidden"><div style="height:100%;width:{x["prob"]}%;background:linear-gradient(90deg,#7644ef,#a15cff)"></div></div><b>%{str(x["prob"]).replace(".",",")}</b></div>',unsafe_allow_html=True)
+                st.markdown(f'<div style="display:grid;grid-template-columns:112px 1fr 45px;gap:7px;align-items:center;margin:13px 0;font-size:12px"><span>{x["horse"]}</span><div style="height:18px;border-radius:5px;background:#292e48;overflow:hidden"><div style="height:100%;width:{x["prob"]}%;background:linear-gradient(90deg,#005BB3,#B2DAE4)"></div></div><b>%{str(x["prob"]).replace(".",",")}</b></div>',unsafe_allow_html=True)
     with st.container(border=True):
         title("▦","Yarış Programı","(Yaklaşan Koşular)")
         table(pd.DataFrame(d["program"]),210)
 
 elif st.session_state.page == "Yarış Programı":
     hero(True)
-    f1,f2=st.columns([1,1],gap="small")
+    f1,f2=st.columns([1.1,1.2],gap="small")
     with f1:
-        with st.container(border=True): selected_date=st.date_input("Tarih",value=pd.Timestamp.today().date(),format="DD.MM.YYYY")
+        with st.container(border=True):
+            selected_date=st.date_input("Tarih",value=pd.Timestamp.today().date(),format="DD.MM.YYYY")
     with f2:
-        with st.container(border=True): track=st.selectbox("Hipodrom",["Tümü (3 Hipodrom)","İstanbul","Ankara","İzmir"])
+        with st.container(border=True):
+            track=st.selectbox("Hipodrom",["Tümü (3 Hipodrom)","İstanbul","Ankara","İzmir"])
     races=get_race_program_data()
     if track!="Tümü (3 Hipodrom)": races=[r for r in races if r["track"]==track]
     with st.container(border=True):
@@ -162,17 +170,18 @@ elif st.session_state.page == "Yarış Programı":
         detail=get_race_detail(selected)
         with st.container(border=True):
             p1,p2,p3,p4=st.columns([.55,1,1.7,1.6])
-            with p1: st.markdown(f'<div style="background:#7940f0;border-radius:10px;text-align:center;padding:12px 4px;font-weight:800">{race["no"]}. Koşu</div>',unsafe_allow_html=True)
+            with p1: st.markdown(f'<div style="background:#005BB3;border-radius:10px;text-align:center;padding:12px 4px;font-weight:800">{race["no"]}. Koşu</div>',unsafe_allow_html=True)
             with p2: st.markdown(f'<b>{race["track"]}</b><br><span class="small-muted">Hipodromu</span>',unsafe_allow_html=True)
             with p3: st.markdown(f'<b>{race["name"]}</b><br><span class="small-muted">{race["class"]} / {race["age"]} / {race["distance"]} ({race["surface"]})</span>',unsafe_allow_html=True)
             with p4: st.markdown(f'<div style="font-size:12px;text-align:right">◷ {race["time"]}<br>Koşan At: {race["runners"]}<br>Ödül: {race["prize"]}</div>',unsafe_allow_html=True)
             tab=st.radio("Koşu detayları",["Koşu Bilgisi","Galoplar","Sabit Oranlar","Muhtemel Ganyan","Geçmiş Koşular"],horizontal=True,label_visibility="collapsed",key=f"race_detail_{selected}")
+            # Sağdaki Koşu Bilgileri ve Geçmiş Koşular kartları kaldırıldı.
+            # Ana yarış tablosu kullanılabilir genişliğin tamamını kaplar.
             if tab=="Koşu Bilgisi": table(pd.DataFrame(detail["horses"]),650)
             elif tab=="Sabit Oranlar": table(pd.DataFrame(detail["fixed_odds"]),650)
             elif tab=="Muhtemel Ganyan": table(pd.DataFrame(detail["probable_odds"]),650)
             elif tab=="Geçmiş Koşular": table(pd.DataFrame(detail["past_runs"]),650)
             else: table(pd.DataFrame(detail["gallops"]),650)
-
 else:
     hero()
     with st.container(border=True): st.info(f"{st.session_state.page} sayfası sonraki geliştirme aşamasında hazırlanacaktır.")
