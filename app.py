@@ -53,12 +53,20 @@ section[data-testid="stSidebar"] .stButton>button:hover{{background:#343d61!impo
 .featured-table-wrap{{border:2px solid #062b55;border-radius:10px;padding:3px;box-shadow:0 0 0 1px #fff7,0 5px 14px #0005;overflow:auto}}
 .featured-table{{border:0!important;border-collapse:separate!important;border-spacing:0!important}}
 .featured-table th{{background:#005BB3!important;color:#fff!important;font-weight:900!important;text-transform:uppercase!important;border-bottom:2px solid #062b55!important}}
-.featured-table td{{color:#101010!important;font-weight:900!important;font-size:14px!important;text-transform:uppercase!important;border-bottom:1px solid #ffffff!important;padding:9px 6px!important}}
-.featured-table tbody tr:nth-child(odd) td{{background:#F86A38!important}}
-.featured-table tbody tr:nth-child(even) td{{background:#F4D03F!important}}
+.featured-table td{{color:#ffffff!important;font-weight:900!important;font-size:15px!important;text-transform:uppercase!important;border-bottom:1px solid #ffffff!important;padding:9px 6px!important}}
+.featured-table tbody tr:nth-child(odd) td{{background:#555b64!important}}
+.featured-table tbody tr:nth-child(even) td{{background:#3b414a!important}}
 .featured-pill{{display:inline-block;min-width:42px;padding:4px 10px;border-radius:999px;font-size:14px;line-height:1.15;font-weight:900;text-align:center;white-space:nowrap;box-shadow:inset 0 0 0 1px #ffffff55}}
 .featured-pill.agf{{background:#029456;color:#07150f}}
 .featured-pill.ganyan{{background:#D8226C;color:#fff}}
+.agf-summary-wrap{{border:1px solid #263d5b;border-radius:9px;padding:2px;overflow:auto}}
+.agf-summary-table th{{background:#005BB3!important;color:#fff!important;font-size:13px!important;font-weight:900!important;padding:8px 6px!important}}
+.agf-summary-table td{{font-size:14px!important;font-weight:900!important;padding:8px 6px!important;color:#111827!important}}
+.agf-summary-table tbody tr:nth-child(odd) td{{background:#555b63!important}}
+.agf-summary-table tbody tr:nth-child(even) td{{background:#e3e5e8!important}}
+.agf-summary-table tbody tr:hover td{{background:inherit!important}}
+.agf-summary-table .featured-pill.agf{{background:#029456!important;color:#fff!important;font-size:14px!important;padding:4px 11px!important;min-width:48px}}
+
 .data-table td:nth-child(2){{color:#c00018;font-weight:900}}
 .data-table td:nth-child(4){{color:#005BB3;font-weight:900}}
 .data-table td:nth-child(6),.data-table td:nth-child(7),.data-table td:nth-child(8){{color:#029456;font-weight:900}}
@@ -120,19 +128,26 @@ def table(df, height=300):
     view = df.copy()
     # Ekrandaki bütün tablo metinleri büyük harf; oran ve derece değerleri korunur.
     view = view.applymap(lambda v: str(v).upper() if isinstance(v, str) else v)
-    is_featured = {"Son 6 Koşu", "Koşu", "AGF", "Muhtemel Ganyan"}.issubset(set(map(str, view.columns)))
-    table_class = "data-table featured-table" if is_featured else "data-table"
+    columns_set = set(map(str, view.columns))
+    is_featured = {"Son 6 Koşu", "Koşu", "AGF", "Muhtemel Ganyan"}.issubset(columns_set)
+    is_agf_summary = {"Sıra", "At Adı", "AGF Oranı"}.issubset(columns_set)
+    table_class = "data-table featured-table" if is_featured else ("data-table agf-summary-table" if is_agf_summary else "data-table")
     html = view.to_html(index=False, escape=True, border=0, classes=table_class)
-    if is_featured:
+    if is_featured or is_agf_summary:
         # AGF ve Muhtemel Ganyan hücrelerinin tamamını değil, yalnızca sayılarını elips rozetle vurgula.
         # Satırların kendi turuncu/sarı zeminleri bütün sütunlarda aynı kalır.
         headers = list(map(str, view.columns))
-        agf_idx = headers.index("AGF")
-        odds_idx = headers.index("Muhtemel Ganyan")
+        agf_idx = headers.index("AGF") if "AGF" in headers else (headers.index("AGF Oranı") if "AGF Oranı" in headers else None)
+        odds_idx = headers.index("Muhtemel Ganyan") if "Muhtemel Ganyan" in headers else None
         def badge_row(match):
             cells = re.findall(r"<td>(.*?)</td>", match.group(0), flags=re.S)
             rebuilt = match.group(0)
-            for idx, cls in ((agf_idx, "agf"), (odds_idx, "ganyan")):
+            badge_targets = []
+            if agf_idx is not None:
+                badge_targets.append((agf_idx, "agf"))
+            if odds_idx is not None:
+                badge_targets.append((odds_idx, "ganyan"))
+            for idx, cls in badge_targets:
                 if idx < len(cells):
                     value = cells[idx]
                     replacement = f'<td><span class="featured-pill {cls}">{value}</span></td>'
@@ -142,6 +157,8 @@ def table(df, height=300):
     html = html.replace(">", ">" + colgroup, 1)
     if is_featured:
         st.markdown(f'<div class="featured-table-wrap"><div class="scroll-table" style="max-height:{height}px">{html}</div></div>', unsafe_allow_html=True)
+    elif is_agf_summary:
+        st.markdown(f'<div class="agf-summary-wrap"><div class="scroll-table" style="max-height:{height}px">{html}</div></div>', unsafe_allow_html=True)
     else:
         st.markdown(f'<div class="scroll-table" style="max-height:{height}px">{html}</div>', unsafe_allow_html=True)
 
