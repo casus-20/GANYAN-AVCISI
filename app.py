@@ -142,12 +142,12 @@ if st.session_state.page == "Ana Sayfa":
 
         with st.container(border=True):
             title("♞", "Öne Çıkan Atlar ve Muhtemel Ganyan", "(En fazla 15 at)")
-            table(pd.DataFrame(d["featured"]), 285)
+            table(pd.DataFrame(d["featured"]), 355)
 
     with center_col:
         with st.container(border=True):
             title("▥", "AGF Oranları", "(Günün Öne Çıkan Koşusu)")
-            table(pd.DataFrame(d["agf"][:20]), 670)
+            table(pd.DataFrame(d["agf"][:20]), 680)
 
     with right_col:
         with st.container(border=True):
