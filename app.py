@@ -165,12 +165,12 @@ if st.session_state.page == "Ana Sayfa":
 
         with st.container(border=True):
             title("♞", "Öne Çıkan Atlar ve Muhtemel Ganyan", "(En fazla 15 at)")
-            table(pd.DataFrame(d["featured"]), 285)
+            table(pd.DataFrame(d["featured"]), 355)
 
     with center_col:
         with st.container(border=True):
             title("▥", "AGF Oranları", "(Günün Öne Çıkan Koşusu)")
-            table(pd.DataFrame(d["agf"][:20]), 620)
+            table(pd.DataFrame(d["agf"][:20]), 680)
 
     with right_col:
         with st.container(border=True):
@@ -181,7 +181,7 @@ if st.session_state.page == "Ana Sayfa":
             )
             result = d["results"][choice]
             st.markdown(
-                f'<div class="small-muted" style="font-weight:900;color:#B2DAE4;margin:2px 0 6px">'
+                f'<div class="Big-muted" style="font-weight:900;color:#B2DAE4;margin:4px 0 10px">'
                 f'ŞEHİR / HİPODROM: {result.get("city", "İSTANBUL")}</div>',
                 unsafe_allow_html=True
             )
@@ -193,7 +193,7 @@ if st.session_state.page == "Ana Sayfa":
                     "Kazanan At / Ganyan / AGF": f'{leg.get("Kazanan At", "")}  |  GANYAN: {leg.get("Ganyan", "-")}  |  AGF: {leg.get("AGF", "-")}',
                     "Bitiş Derecesi": leg.get("Bitiş Derecesi", "")
                 })
-            table(pd.DataFrame(result_rows), 205)
+            table(pd.DataFrame(result_rows), 235)
             st.markdown(
                 f'<div class="result-box"><b>{choice.upper()} SONUCU:</b> {result["sequence"]}'
                 f'<br><b>İKRAMİYE: {result["payout"]}</b>　|　'
