@@ -147,7 +147,7 @@ if st.session_state.page == "Ana Sayfa":
     with center_col:
         with st.container(border=True):
             title("▥", "AGF Oranları", "(Günün Öne Çıkan Koşusu)")
-            table(pd.DataFrame(d["agf"][:20]), 650)
+            table(pd.DataFrame(d["agf"][:20]), 670)
 
     with right_col:
         with st.container(border=True):
@@ -158,11 +158,11 @@ if st.session_state.page == "Ana Sayfa":
             )
             result = d["results"][choice]
             st.markdown(
-                f'<div class="small-muted" style="font-weight:900;color:#B2DAE4;margin:2px 0 6px">'
+                f'<div class="big-muted" style="font-weight:900;color:#B2DAE4;margin:4px 0 10px">'
                 f'ŞEHİR / HİPODROM: {result.get("city", "İSTANBUL")}</div>',
                 unsafe_allow_html=True
             )
-            table(pd.DataFrame(result["legs"]), 205)
+            table(pd.DataFrame(result["legs"]), 245)
             st.markdown(
                 f'<div class="result-box"><b>{choice} Sonucu:</b> {result["sequence"]}'
                 f'<br><b>İkramiye:</b> {result["payout"]} </div>',
