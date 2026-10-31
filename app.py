@@ -165,7 +165,7 @@ if st.session_state.page == "Ana Sayfa":
 
         with st.container(border=True):
             title("♞", "Öne Çıkan Atlar ve Muhtemel Ganyan", "(En fazla 15 at)")
-            table(pd.DataFrame(d["featured"]), 355)
+            table(pd.DataFrame(d["featured"]), 305)
 
     with center_col:
         with st.container(border=True):
@@ -193,7 +193,7 @@ if st.session_state.page == "Ana Sayfa":
                     "Kazanan At / Ganyan / AGF": f'{leg.get("Kazanan At", "")}  |  GANYAN: {leg.get("Ganyan", "-")}  |  AGF: {leg.get("AGF", "-")}',
                     "Bitiş Derecesi": leg.get("Bitiş Derecesi", "")
                 })
-            table(pd.DataFrame(result_rows), 235)
+            table(pd.DataFrame(result_rows), 335)
             st.markdown(
                 f'<div class="result-box"><b>{choice.upper()} SONUCU:</b> {result["sequence"]}'
                 f'<br><b>İKRAMİYE: {result["payout"]}</b>　|　'
