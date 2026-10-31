@@ -43,12 +43,15 @@ section[data-testid="stSidebar"] .stButton>button:hover{{background:#343d61!impo
 [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"]{{gap:.42rem}}
 .panel-title{{font-size:16px;font-weight:750;margin:0 0 7px;color:#f4f3fb}}
 .panel-title .ico{{color:#a15cff;margin-right:8px}}
-.data-table{{width:100%;max-width:100%;table-layout:fixed;border-collapse:collapse;color:#B2DAE4;font-size:12px;font-weight:800;white-space:normal;text-transform:uppercase}}
-.data-table th{{background:#005BB3;color:#ffffff;font-weight:900;padding:7px 6px;text-align:left;position:sticky;top:0;z-index:1;text-transform:uppercase;overflow-wrap:anywhere}}
-.data-table td{{border-bottom:1px solid #B2DAE455;padding:6px 6px;color:#B2DAE4;font-weight:800;overflow-wrap:anywhere;word-break:normal}}
-.data-table tr:nth-child(even) td{{background:#005BB322}}
-.data-table tr:nth-child(odd) td{{background:#101d31}}
-.data-table tr:hover td{{background:#005BB366;color:#ffffff}}
+.data-table{{width:100%;max-width:100%;table-layout:fixed;border-collapse:collapse;color:#18212d;font-size:12px;font-weight:800;white-space:normal;text-transform:uppercase}}
+.data-table th{{background:#30343b;color:#f7f8fa;font-weight:900;padding:7px 5px;text-align:left;position:sticky;top:0;z-index:1;text-transform:uppercase;overflow-wrap:anywhere}}
+.data-table td{{border-bottom:1px solid #c9cdd2;padding:6px 5px;color:#17212b;font-weight:900;overflow-wrap:anywhere;word-break:normal;line-height:1.15}}
+.data-table tr:nth-child(even) td{{background:#e7e8e8}}
+.data-table tr:nth-child(odd) td{{background:#f7f7f5}}
+.data-table tr:hover td{{background:#dceaf4;color:#17212b}}
+.data-table td:nth-child(2){{color:#c00018;font-weight:900}}
+.data-table td:nth-child(4){{color:#005BB3;font-weight:900}}
+.data-table td:nth-child(6),.data-table td:nth-child(7),.data-table td:nth-child(8){{color:#029456;font-weight:900}}
 .scroll-table{{overflow:auto;max-width:100%;width:100%;border-radius:9px;scrollbar-color:#005BB3 #171c30;scrollbar-width:thin}}
 .scroll-table table{{width:100%!important;min-width:0!important;max-width:100%!important;table-layout:fixed!important;box-sizing:border-box}}
 .scroll-table th,.scroll-table td{{box-sizing:border-box;max-width:0}}
@@ -89,7 +92,27 @@ def table(df, height=300):
     if df is None or len(df) == 0:
         st.caption("Gösterilecek kayıt bulunamadı.")
         return
-    st.markdown(f'<div class="scroll-table" style="max-height:{height}px">{df.to_html(index=False,escape=True,border=0,classes="data-table")}</div>', unsafe_allow_html=True)
+    # Kolon bazlı genişlikler: dar sıra/no, geniş at adı ve orijin.
+    width_map = {
+        "No": 4, "Sıra": 5, "At No": 5, "At İsmi": 17, "At Adı": 17,
+        "Yaş": 7, "Yaş / Cins": 8, "Yaş/Cins": 8,
+        "Orijin (Baba - Anne)": 17, "Orijin (Baba-Anne)": 17,
+        "Kilo": 6, "Sıklet": 6, "Jokey": 10, "Sahip": 11,
+        "Antrenör": 10, "Sahip / Antrenör": 14, "St.": 5, "HP": 5,
+        "Son 6 Y.": 9, "KGS": 5, "s20": 5, "EİD": 7,
+        "Sabit Oran": 7, "Muhtemel Ganyan": 9, "AGF Oranı": 9, "AGF": 7,
+        "Ayak": 13, "Koşu": 13, "Kazanan At / Ganyan / AGF": 48,
+        "Bitiş Derecesi": 18,
+    }
+    widths = [width_map.get(str(c), max(7, 80 // max(1, len(df.columns)))) for c in df.columns]
+    total = sum(widths)
+    colgroup = "<colgroup>" + "".join(f'<col style="width:{w/total*100:.2f}%">' for w in widths) + "</colgroup>"
+    view = df.copy()
+    # Ekrandaki bütün tablo metinleri büyük harf; oran ve derece değerleri korunur.
+    view = view.applymap(lambda v: str(v).upper() if isinstance(v, str) else v)
+    html = view.to_html(index=False, escape=True, border=0, classes="data-table")
+    html = html.replace("<table", "<table", 1).replace(">", ">" + colgroup, 1)
+    st.markdown(f'<div class="scroll-table" style="max-height:{height}px">{html}</div>', unsafe_allow_html=True)
 
 def hero(program=False):
     cls = "hero program" if program else "hero"
@@ -142,12 +165,12 @@ if st.session_state.page == "Ana Sayfa":
 
         with st.container(border=True):
             title("♞", "Öne Çıkan Atlar ve Muhtemel Ganyan", "(En fazla 15 at)")
-            table(pd.DataFrame(d["featured"]), 355)
+            table(pd.DataFrame(d["featured"]), 285)
 
     with center_col:
         with st.container(border=True):
             title("▥", "AGF Oranları", "(Günün Öne Çıkan Koşusu)")
-            table(pd.DataFrame(d["agf"][:20]), 680)
+            table(pd.DataFrame(d["agf"][:20]), 620)
 
     with right_col:
         with st.container(border=True):
@@ -158,14 +181,23 @@ if st.session_state.page == "Ana Sayfa":
             )
             result = d["results"][choice]
             st.markdown(
-                f'<div class="big-muted" style="font-weight:900;color:#B2DAE4;margin:4px 0 10px">'
+                f'<div class="small-muted" style="font-weight:900;color:#B2DAE4;margin:2px 0 6px">'
                 f'ŞEHİR / HİPODROM: {result.get("city", "İSTANBUL")}</div>',
                 unsafe_allow_html=True
             )
-            table(pd.DataFrame(result["legs"]), 245)
+            result_rows = []
+            for leg in result["legs"]:
+                result_rows.append({
+                    "Ayak": leg.get("Ayak", ""),
+                    "Koşu": leg.get("Koşu", ""),
+                    "Kazanan At / Ganyan / AGF": f'{leg.get("Kazanan At", "")}  |  GANYAN: {leg.get("Ganyan", "-")}  |  AGF: {leg.get("AGF", "-")}',
+                    "Bitiş Derecesi": leg.get("Bitiş Derecesi", "")
+                })
+            table(pd.DataFrame(result_rows), 205)
             st.markdown(
-                f'<div class="result-box"><b>{choice} Sonucu:</b> {result["sequence"]}'
-                f'<br><b>İkramiye:</b> {result["payout"]} </div>',
+                f'<div class="result-box"><b>{choice.upper()} SONUCU:</b> {result["sequence"]}'
+                f'<br><b>İKRAMİYE: {result["payout"]}</b>　|　'
+                f'<b>BİLEN KİŞİ: {result["winners"]}</b></div>',
                 unsafe_allow_html=True
             )
 
