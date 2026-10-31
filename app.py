@@ -50,7 +50,8 @@ section[data-testid="stSidebar"] .stButton>button:hover{{background:#343d61!impo
 .data-table tr:nth-child(odd) td{{background:#101d31}}
 .data-table tr:hover td{{background:#005BB366;color:#ffffff}}
 .scroll-table{{overflow:auto;max-width:100%;width:100%;border-radius:9px;scrollbar-color:#005BB3 #171c30;scrollbar-width:thin}}
-.scroll-table table{{width:100%;min-width:0}}
+.scroll-table table{{width:100%!important;min-width:0!important;max-width:100%!important;table-layout:fixed!important;box-sizing:border-box}}
+.scroll-table th,.scroll-table td{{box-sizing:border-box;max-width:0}}
 .panel-title .ico{{color:#B2DAE4}}
 .result-box{{border:1px solid #005BB3;border-radius:10px;padding:9px;background:#005BB322;margin-top:8px;font-size:12px;color:#B2DAE4;font-weight:800}}
 .city-card{{border-color:#005BB366}}
@@ -127,7 +128,9 @@ if st.session_state.page == "Ana Sayfa":
             st.markdown(f'<div class="small-muted" style="font-weight:900;color:#B2DAE4;margin:2px 0 6px">ŞEHİR / HİPODROM: {result.get("city", "İSTANBUL")}</div>',unsafe_allow_html=True)
             table(pd.DataFrame(result["legs"]),205)
             st.markdown(f'<div class="result-box"><b>{choice} Sonucu:</b> {result["sequence"]}<br><b>İkramiye:</b> {result["payout"]}　|　<b>Bilen Kişi:</b> {result["winners"]}</div>',unsafe_allow_html=True)
-    a,b=st.columns([1.35,1],gap="small")
+    # Alt paneller üst sıradaki işaretli kutularla aynı üç kolon ızgarasına hizalanır.
+    # Orta kolon (AGF kutusunun altı) bilinçli olarak boş bırakılır.
+    a,_,b=st.columns([1.15,0.82,1.00],gap="small")
     with a:
         with st.container(border=True):
             title("♞","Öne Çıkan Atlar ve Muhtemel Ganyan","(En fazla 15 at)")
