@@ -170,7 +170,7 @@ if st.session_state.page == "Ana Sayfa":
     with center_col:
         with st.container(border=True):
             title("▥", "AGF Oranları", "(Günün Öne Çıkan Koşusu)")
-            table(pd.DataFrame(d["agf"][:20]), 680)
+            table(pd.DataFrame(d["agf"][:20]), 780)
 
     with right_col:
         with st.container(border=True):
