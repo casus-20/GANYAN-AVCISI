@@ -235,6 +235,16 @@ def fetch_html(url: str) -> tuple[str, str]:
 
 def add_scores(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
+    # Kaynak Rating, Equest response'unda SAHIP_TOPLAM alanıdır.
+    # Önceki sürümde olmayan "Kaynak Rating" sütununa erişildiği için
+    # Streamlit Cloud'da KeyError oluşuyordu.
+    if "SAHIP_TOPLAM" not in out.columns:
+        out["SAHIP_TOPLAM"] = np.nan
+    out["Kaynak Rating"] = pd.to_numeric(out["SAHIP_TOPLAM"], errors="coerce")
+    for key in FACTOR_KEYS:
+        if key not in out.columns:
+            out[key] = np.nan
+        out[key] = pd.to_numeric(out[key], errors="coerce")
     out["Aday Rating"] = sum(
         out[key].fillna(0) * weight
         for key, weight in CANDIDATE_WEIGHTS.items()
