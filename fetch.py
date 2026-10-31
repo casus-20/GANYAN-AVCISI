@@ -58,7 +58,7 @@ def get_dashboard_data():
     legs2=[{"Ayak":f"{i+1}. Ayak","Koşu":f"{i+5}. Koşu","Kazanan At":NAMES[(i+2)%12],"Bitiş Derecesi":["1:36.42","2:02.15","1:24.36","1:37.11","1:49.21","1:23.78"][i]} for i in range(6)]
     return {"weather":deepcopy(WEATHER),"agf":deepcopy(AGF),"featured":deepcopy(FEATURED),
      "probabilities":[{"horse":"(4) Kara Rüzgar","prob":42.1},{"horse":"(7) Mavi İnci","prob":18.6},{"horse":"(2) Yıldızhan","prob":13.9},{"horse":"(5) Sürat Kralı","prob":11.7},{"horse":"(1) Beyaz Şimşek","prob":6.8}],
-     "results":{"1. Altılı":{"legs":legs1,"sequence":"4 - 7 - 3 - 1 - 6 - 2","payout":"426.580,00 ₺","winners":"12"},"2. Altılı":{"legs":legs2,"sequence":"3 - 1 - 6 - 2 - 4 - 7","payout":"184.250,00 ₺","winners":"8"}},
+     "results":{"1. Altılı":{"city":"İstanbul","legs":legs1,"sequence":"4 - 7 - 3 - 1 - 6 - 2","payout":"426.580,00 ₺","winners":"12"},"2. Altılı":{"city":"İstanbul","legs":legs2,"sequence":"3 - 1 - 6 - 2 - 4 - 7","payout":"184.250,00 ₺","winners":"8"}},
      "program":deepcopy(PROGRAM)}
 
 def get_race_program_data():
