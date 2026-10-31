@@ -64,7 +64,7 @@ section[data-testid="stSidebar"] .stButton>button:hover{{background:#343d61!impo
 .agf-summary-table td{{font-size:15px!important;font-weight:900!important;padding:8px 6px!important;color:#ffffff!important}}
 .agf-summary-table tbody tr:nth-child(odd) td{{background:#555b64!important}}
 .agf-summary-table tbody tr:nth-child(even) td{{background:#3b414a!important}}
-.agf-summary-table tbody tr td:nth-child(2){{color:#800020!important;font-weight:900!important}}
+.agf-summary-table tbody tr td:nth-child(2){{color:#ffffff!important;font-weight:900!important}}
 .agf-summary-table tbody tr:hover td{{background:inherit!important}}
 .agf-summary-table .featured-pill.agf{{background:#029456!important;color:#fff!important;font-size:14px!important;padding:4px 11px!important;min-width:48px}}
 
