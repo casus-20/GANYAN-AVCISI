@@ -24,8 +24,15 @@ html,body,[class*="css"]{{font-family:Inter,sans-serif}}
 .stApp{{background:radial-gradient(ellipse at 48% 0%,#17152e 0%,#0b1020 52%,#080d1b 100%);color:var(--text)}}
 [data-testid="stHeader"]{{background:transparent}}
 .block-container{{padding:.25rem 1rem 1.1rem;max-width:1900px}}
-section[data-testid="stSidebar"]{{background:linear-gradient(180deg,#171b31,#101528);border-right:1px solid #262d48;min-width:238px!important}}
-section[data-testid="stSidebar"]>div{{padding:1rem .7rem}}
+section[data-testid="stSidebar"]{{background:linear-gradient(180deg,#171b31,#101528);border-right:1px solid #262d48;width:167px!important;min-width:167px!important;max-width:167px!important;flex:0 0 167px!important}}
+section[data-testid="stSidebar"]>div{{padding:.65rem .45rem}}
+/* Sol menü sabit: aç/kapat kontrollerini gizle */
+[data-testid="stSidebarCollapseButton"], [data-testid="collapsedControl"], button[kind="header"]{{display:none!important}}
+section[data-testid="stSidebar"]{{transform:none!important;visibility:visible!important}}
+section[data-testid="stSidebar"] button{{width:100%;min-height:34px!important;padding:5px 7px!important;margin:2px 0!important;border-radius:8px!important;background:#202943!important;border:1px solid #394563!important;color:#f4f5fc!important;font-size:11px!important;white-space:nowrap!important}}
+section[data-testid="stSidebar"] button[kind="primary"]{{background:linear-gradient(100deg,#7138ef,#8e4dff)!important;border-color:#a17bff!important}}
+section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]{{gap:.28rem!important}}
+
 .brand{{text-align:center;padding:7px 4px 22px;color:white;font-size:19px;font-weight:800;line-height:1.2}}
 .brand .horse{{display:block;font-size:44px;line-height:1.2;margin-bottom:6px}}
 .hero{{min-height:126px;border-radius:0 0 14px 14px;padding:14px 24px;margin:0 0 10px;background:linear-gradient(90deg,rgba(12,15,31,.98),rgba(12,15,31,.88) 40%,rgba(12,15,31,.08)),url('data:image/jpeg;base64,{MAIN_BANNER}') right center/cover no-repeat;border-bottom:1px solid #252c48;display:flex;flex-direction:column;justify-content:center}}
@@ -51,6 +58,11 @@ section[data-testid="stSidebar"]>div{{padding:1rem .7rem}}
 .stButton>button:hover{{border-color:#a36aff;color:white;background:#34245d}}
 .stButton>button[kind="primary"]{{background:linear-gradient(100deg,#7138ef,#8e4dff);border-color:#9a70ff}}
 div[data-testid="stSelectbox"] label,div[data-testid="stDateInput"] label{{color:#e9eaf5!important}}
+/* Yarış programı tarih/hipodrom filtreleri: önceki yüksekliğin yaklaşık %60'ı */
+div[data-testid="stDateInput"] input{{height:30px!important;min-height:30px!important;padding-top:2px!important;padding-bottom:2px!important;font-size:12px!important}}
+div[data-testid="stSelectbox"] [data-baseweb="select"]{{min-height:30px!important;height:30px!important;font-size:12px!important}}
+div[data-testid="stDateInput"],div[data-testid="stSelectbox"]{{margin-bottom:0!important}}
+
 div[data-testid="stSelectbox"]>div>div,div[data-testid="stDateInput"] input{{background:#202640}}
 div[data-testid="stRadio"] label{{color:#f5f5fb}}
 [data-testid="stDataFrame"]{{border:1px solid #303754;border-radius:8px}}
@@ -125,16 +137,13 @@ if st.session_state.page == "Ana Sayfa":
 
 elif st.session_state.page == "Yarış Programı":
     hero(True)
-    f1,f2,f3=st.columns([1.1,1.2,.75],gap="small")
+    f1,f2=st.columns([1,1],gap="small")
     with f1:
-        with st.container(border=True): st.date_input("Tarih",value=pd.Timestamp.today().date(),format="DD.MM.YYYY")
+        with st.container(border=True): selected_date=st.date_input("Tarih",value=pd.Timestamp.today().date(),format="DD.MM.YYYY")
     with f2:
         with st.container(border=True): track=st.selectbox("Hipodrom",["Tümü (3 Hipodrom)","İstanbul","Ankara","İzmir"])
-    with f3:
-        with st.container(border=True): only=st.toggle("Sadece Koşular",value=False)
     races=get_race_program_data()
     if track!="Tümü (3 Hipodrom)": races=[r for r in races if r["track"]==track]
-    if only: races=[r for r in races if r["runners"]>0]
     with st.container(border=True):
         x,y=st.columns([1,1.7])
         with x: title("▦","Günün Yarış Programı",f"({track})")
@@ -151,31 +160,19 @@ elif st.session_state.page == "Yarış Programı":
     if race is None: st.info("Seçilen hipodromda bu koşu bulunmuyor.")
     else:
         detail=get_race_detail(selected)
-        left,right=st.columns([3.2,1.05],gap="small")
-        with left:
-            with st.container(border=True):
-                p1,p2,p3,p4=st.columns([.55,1,1.7,1.6])
-                with p1: st.markdown(f'<div style="background:#7940f0;border-radius:10px;text-align:center;padding:12px 4px;font-weight:800">{race["no"]}. Koşu</div>',unsafe_allow_html=True)
-                with p2: st.markdown(f'<b>{race["track"]}</b><br><span class="small-muted">Hipodromu</span>',unsafe_allow_html=True)
-                with p3: st.markdown(f'<b>{race["name"]}</b><br><span class="small-muted">{race["class"]} / {race["age"]} / {race["distance"]} ({race["surface"]})</span>',unsafe_allow_html=True)
-                with p4: st.markdown(f'<div style="font-size:12px;text-align:right">◷ {race["time"]}<br>Koşan At: {race["runners"]}<br>Ödül: {race["prize"]}</div>',unsafe_allow_html=True)
-                tab=st.radio("Koşu detayları",["Koşu Bilgisi","Galoplar","Sabit Oranlar","Muhtemel Ganyan","Geçmiş Koşular"],horizontal=True,label_visibility="collapsed",key=f"race_detail_{selected}")
-                if tab=="Koşu Bilgisi": table(pd.DataFrame(detail["horses"]),510)
-                elif tab=="Sabit Oranlar": table(pd.DataFrame(detail["fixed_odds"]),510)
-                elif tab=="Muhtemel Ganyan": table(pd.DataFrame(detail["probable_odds"]),510)
-                elif tab=="Geçmiş Koşular": table(pd.DataFrame(detail["past_runs"]),510)
-                else: table(pd.DataFrame(detail["gallops"]),510)
-        with right:
-            with st.container(border=True):
-                title("ⓘ","Koşu Bilgileri")
-                for k,v in [("Koşu Türü",race["class"]),("Yaş / Cins",race["age"]),("Mesafe",race["distance"]),("Pist",race["surface"]),("Koşan At Sayısı",race["runners"]),("Ödül",race["prize"])]:
-                    st.markdown(f'<div style="display:flex;justify-content:space-between;border-bottom:1px solid #303752;padding:5px 0;font-size:12px"><span>{k}</span><b>{v}</b></div>',unsafe_allow_html=True)
-                st.markdown('<div style="font-size:58px;text-align:center;margin-top:12px">🏟️</div><div style="text-align:center;font-weight:700">İstanbul<br><span class="small-muted">Çim Pisti</span></div>',unsafe_allow_html=True)
-            with st.container(border=True):
-                title("▥","Geçmiş Koşular","(Seçili At)")
-                horse_options=[h["At Adı"] for h in detail["horses"]]
-                selected_horse=st.selectbox("At seç",horse_options,label_visibility="collapsed")
-                table(pd.DataFrame(detail["past_runs"]),220)
+        with st.container(border=True):
+            p1,p2,p3,p4=st.columns([.55,1,1.7,1.6])
+            with p1: st.markdown(f'<div style="background:#7940f0;border-radius:10px;text-align:center;padding:12px 4px;font-weight:800">{race["no"]}. Koşu</div>',unsafe_allow_html=True)
+            with p2: st.markdown(f'<b>{race["track"]}</b><br><span class="small-muted">Hipodromu</span>',unsafe_allow_html=True)
+            with p3: st.markdown(f'<b>{race["name"]}</b><br><span class="small-muted">{race["class"]} / {race["age"]} / {race["distance"]} ({race["surface"]})</span>',unsafe_allow_html=True)
+            with p4: st.markdown(f'<div style="font-size:12px;text-align:right">◷ {race["time"]}<br>Koşan At: {race["runners"]}<br>Ödül: {race["prize"]}</div>',unsafe_allow_html=True)
+            tab=st.radio("Koşu detayları",["Koşu Bilgisi","Galoplar","Sabit Oranlar","Muhtemel Ganyan","Geçmiş Koşular"],horizontal=True,label_visibility="collapsed",key=f"race_detail_{selected}")
+            if tab=="Koşu Bilgisi": table(pd.DataFrame(detail["horses"]),650)
+            elif tab=="Sabit Oranlar": table(pd.DataFrame(detail["fixed_odds"]),650)
+            elif tab=="Muhtemel Ganyan": table(pd.DataFrame(detail["probable_odds"]),650)
+            elif tab=="Geçmiş Koşular": table(pd.DataFrame(detail["past_runs"]),650)
+            else: table(pd.DataFrame(detail["gallops"]),650)
+
 else:
     hero()
     with st.container(border=True): st.info(f"{st.session_state.page} sayfası sonraki geliştirme aşamasında hazırlanacaktır.")
