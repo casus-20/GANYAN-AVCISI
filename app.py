@@ -67,6 +67,16 @@ section[data-testid="stSidebar"] .stButton>button:hover{{background:#343d61!impo
 .agf-summary-table tbody tr td:nth-child(2){{color:#ffffff!important;font-weight:900!important}}
 .agf-summary-table tbody tr:hover td{{background:inherit!important}}
 .agf-summary-table .featured-pill.agf{{background:#029456!important;color:#fff!important;font-size:14px!important;padding:4px 11px!important;min-width:48px}}
+.race-results-table{{table-layout:fixed!important;width:100%!important}}
+.race-results-table th{{background:#005BB3!important;color:#fff!important;font-weight:900!important;font-size:16px!important}}
+.race-results-table td{{font-size:16px!important;font-weight:900!important;color:#fff!important;padding:8px 6px!important}}
+.race-results-table tbody tr:nth-child(odd) td{{background:#555b64!important}}
+.race-results-table tbody tr:nth-child(even) td{{background:#3b414a!important}}
+.race-results-table td:nth-child(3){{font-size:16px!important;font-weight:900!important;letter-spacing:0!important;white-space:normal!important}}
+.race-results-table .featured-pill{{font-size:16px!important}}
+.race-results-table .result-ganyan{{display:inline-block;background:#D8226C;color:#fff;padding:4px 9px;border-radius:999px;font-weight:900;white-space:nowrap}}
+.race-results-table .result-agf{{display:inline-block;background:#fff;color:#005BB3;padding:4px 9px;border-radius:999px;font-weight:900;white-space:nowrap}}
+
 
 .data-table td:nth-child(2){{color:#c00018;font-weight:900}}
 .data-table td:nth-child(4){{color:#005BB3;font-weight:900}}
@@ -121,7 +131,7 @@ def table(df, height=300):
         "Son 6 Y.": 9, "Son 6 Koşu": 18, "K / G / Y": 12, "KGS": 5, "s20": 5, "EİD": 7,
         "Sabit Oran": 7, "Muhtemel Ganyan": 12, "AGF Oranı": 9, "AGF": 9,
         "Ayak": 13, "Koşu": 13, "Kazanan At / Ganyan / AGF": 48,
-        "Bitiş Derecesi": 18,
+        "Bitiş Derecesi": 18, "B. Derece": 18,
     }
     widths = [width_map.get(str(c), max(7, 80 // max(1, len(df.columns)))) for c in df.columns]
     total = sum(widths)
@@ -129,23 +139,36 @@ def table(df, height=300):
     view = df.copy()
     # Ekrandaki bütün tablo metinleri büyük harf; oran ve derece değerleri korunur.
     view = view.applymap(lambda v: str(v).upper() if isinstance(v, str) else v)
+    # Sonuç tablosunda uzun başlığı kısa göster; veri kaynağındaki anahtar değişmez.
+    if "Bitiş Derecesi" in view.columns and {"Ayak", "Koşu", "At Adı", "Ganyan", "AGF"}.issubset(set(map(str, view.columns))):
+        view = view.rename(columns={"Bitiş Derecesi": "B. Derece"})
     columns_set = set(map(str, view.columns))
     is_featured = {"Son 6 Koşu", "Koşu", "AGF", "Muhtemel Ganyan"}.issubset(columns_set)
     is_agf_summary = {"Sıra", "At Adı", "AGF Oranı"}.issubset(columns_set)
-    table_class = "data-table featured-table" if is_featured else ("data-table agf-summary-table" if is_agf_summary else "data-table")
+    is_race_results = {"Ayak", "Koşu", "At Adı", "Ganyan", "AGF", "B. Derece"}.issubset(columns_set)
+    if is_race_results:
+        # Önceki ölçülere göre: At Adı %15 daraltıldı, AGF %5 daraltıldı,
+        # B. Derece alanı genişletildi. Ayak ve Koşu sütunları korunur.
+        result_widths = {"Ayak": 10, "Koşu": 11, "At Adı": 27,
+                         "Ganyan": 10, "AGF": 12.35, "B. Derece": 14.1}
+        widths = [result_widths.get(str(c), 10) for c in view.columns]
+        total = sum(widths)
+        colgroup = "<colgroup>" + "".join(
+            f'<col style="width:{w/total*100:.2f}%">' for w in widths
+        ) + "</colgroup>"
+    table_class = "data-table race-results-table" if is_race_results else ("data-table featured-table" if is_featured else ("data-table agf-summary-table" if is_agf_summary else "data-table"))
     html = view.to_html(index=False, escape=True, border=0, classes=table_class)
-    if is_featured or is_agf_summary:
-        # AGF ve Muhtemel Ganyan hücrelerinin tamamını değil, yalnızca sayılarını elips rozetle vurgula.
-        # Satırların kendi turuncu/sarı zeminleri bütün sütunlarda aynı kalır.
+    if is_featured or is_agf_summary or is_race_results:
+        # Yalnızca oran değerlerini rozetle vurgula; satır zeminleri korunur.
         headers = list(map(str, view.columns))
         agf_idx = headers.index("AGF") if "AGF" in headers else (headers.index("AGF Oranı") if "AGF Oranı" in headers else None)
-        odds_idx = headers.index("Muhtemel Ganyan") if "Muhtemel Ganyan" in headers else None
+        odds_idx = headers.index("Ganyan") if is_race_results else (headers.index("Muhtemel Ganyan") if "Muhtemel Ganyan" in headers else None)
         def badge_row(match):
             cells = re.findall(r"<td>(.*?)</td>", match.group(0), flags=re.S)
             rebuilt = match.group(0)
             badge_targets = []
             if agf_idx is not None:
-                badge_targets.append((agf_idx, "agf"))
+                badge_targets.append((agf_idx, "result-agf" if is_race_results else "agf"))
             if odds_idx is not None:
                 badge_targets.append((odds_idx, "ganyan"))
             for idx, cls in badge_targets:
@@ -256,7 +279,9 @@ if st.session_state.page == "Ana Sayfa":
                 result_rows.append({
                     "Ayak": leg.get("Ayak", ""),
                     "Koşu": leg.get("Koşu", ""),
-                    "Kazanan At / Ganyan / AGF": f'{leg.get("Kazanan At", "")}  |  GANYAN: {leg.get("Ganyan", "-")}  |  AGF: {leg.get("AGF", "-")}',
+                    "At Adı": leg.get("Kazanan At", ""),
+                    "Ganyan": leg.get("Ganyan", "-"),
+                    "AGF": leg.get("AGF", "-"),
                     "Bitiş Derecesi": leg.get("Bitiş Derecesi", "")
                 })
             table(pd.DataFrame(result_rows), 205)
