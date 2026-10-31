@@ -1,35 +1,3 @@
-from pathlib import Path
-import base64
-import streamlit as st
-import pandas as pd
-from fetch import get_dashboard_data, get_race_program_data, get_race_detail
-
-BASE = Path(__file__).parent
-
-def image_b64(name):
-    p = BASE / "assets" / name
-    try:
-        return base64.b64encode(p.read_bytes()).decode("ascii")
-    except Exception:
-        return ""
-
-MAIN_BANNER = image_b64("main_banner.jpg")
-PROGRAM_BANNER = image_b64("program_banner.jpg")
-st.set_page_config(page_title="GANYAN AVCISI", page_icon="🐎", layout="wide", initial_sidebar_state="expanded")
-
-st.markdown(f'''<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-:root{{--bg:#080e1b;--panel:#111d31;--line:#29425e;--purple:#005BB3;--blue:#005BB3;--ice:#B2DAE4;--pink:#D8226C;--orange:#F86A38;--green:#029456;--text:#f5f8ff}}
-html,body,[class*="css"]{{font-family:Inter,sans-serif}}
-.stApp{{background:radial-gradient(ellipse at 48% 0%,#17152e 0%,#0b1020 52%,#080d1b 100%);color:var(--text)}}
-[data-testid="stHeader"]{{background:transparent}}
-.block-container{{padding:.25rem 1rem 1.1rem;max-width:1900px}}
-section[data-testid="stSidebar"]{{background:linear-gradient(180deg,#171b31,#101528);border-right:1px solid #262d48;width:167px!important;min-width:167px!important;max-width:167px!important;flex:0 0 167px!important;}}
-section[data-testid="stSidebar"]>div{{width:167px!important;min-width:167px!important;padding:.75rem .48rem}}
-/* Kenar menüsü sabit: aç/kapat ve daraltma kontrolleri gizli */
-[data-testid="stSidebarCollapseButton"], [data-testid="collapsedControl"], button[kind="header"]{{display:none!important;visibility:hidden!important}}
-section[data-testid="stSidebar"]{{transform:none!important;visibility:visible!important}}
-section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]{{gap:.48rem!important}}
 section[data-testid="stSidebar"] .stButton>button{{width:100%;min-height:34px!important;padding:5px 6px!important;border-radius:8px!important;background:#252d49!important;border:1px solid #3b4568!important;color:#f4f4fb!important;font-size:11.5px!important;font-weight:600!important;white-space:normal!important;line-height:1.18!important;box-shadow:0 2px 6px #0002}}
 section[data-testid="stSidebar"] .stButton>button[kind="primary"]{{background:linear-gradient(100deg,#7138ef,#8e4dff)!important;border-color:#a27aff!important}}
 section[data-testid="stSidebar"] .stButton>button:hover{{background:#343d61!important;border-color:#9a70ff!important}}
@@ -49,6 +17,14 @@ section[data-testid="stSidebar"] .stButton>button:hover{{background:#343d61!impo
 .data-table tr:nth-child(even) td{{background:#e7e8e8}}
 .data-table tr:nth-child(odd) td{{background:#f7f7f5}}
 .data-table tr:hover td{{background:#dceaf4;color:#17212b}}
+.featured-table-wrap{{border:2px solid #062b55;border-radius:10px;padding:3px;box-shadow:0 0 0 1px #fff7,0 5px 14px #0005;overflow:auto}}
+.featured-table{{border:0!important;border-collapse:separate!important;border-spacing:0!important}}
+.featured-table th{{background:#005BB3!important;color:#fff!important;font-weight:900!important;text-transform:uppercase!important;border-bottom:2px solid #062b55!important}}
+.featured-table td{{color:#101010!important;font-weight:900!important;text-transform:uppercase!important;border-bottom:1px solid #ffffff!important}}
+.featured-table tbody tr:nth-child(odd) td{{background:#F86A38!important}}
+.featured-table tbody tr:nth-child(even) td{{background:#F4D03F!important}}
+.featured-table tbody td:nth-child(5){{background:#029456!important;color:#050505!important}}
+.featured-table tbody td:nth-child(6){{background:#D8226C!important;color:#fff!important}}
 .data-table td:nth-child(2){{color:#c00018;font-weight:900}}
 .data-table td:nth-child(4){{color:#005BB3;font-weight:900}}
 .data-table td:nth-child(6),.data-table td:nth-child(7),.data-table td:nth-child(8){{color:#029456;font-weight:900}}
@@ -88,7 +64,7 @@ div[data-testid="stRadio"] label{{color:#f5f5fb}}
 def title(icon, text, extra=""):
     st.markdown(f'<div class="panel-title"><span class="ico">{icon}</span>{text} <span class="small-muted">{extra}</span></div>', unsafe_allow_html=True)
 
-def table(df, height=250):
+def table(df, height=300):
     if df is None or len(df) == 0:
         st.caption("Gösterilecek kayıt bulunamadı.")
         return
@@ -99,8 +75,8 @@ def table(df, height=250):
         "Orijin (Baba - Anne)": 17, "Orijin (Baba-Anne)": 17,
         "Kilo": 6, "Sıklet": 6, "Jokey": 10, "Sahip": 11,
         "Antrenör": 10, "Sahip / Antrenör": 14, "St.": 5, "HP": 5,
-        "Son 6 Y.": 9, "KGS": 5, "s20": 5, "EİD": 7,
-        "Sabit Oran": 7, "Muhtemel Ganyan": 9, "AGF Oranı": 9, "AGF": 7,
+        "Son 6 Y.": 9, "Son 6 Koşu": 18, "K / G / Y": 12, "KGS": 5, "s20": 5, "EİD": 7,
+        "Sabit Oran": 7, "Muhtemel Ganyan": 12, "AGF Oranı": 9, "AGF": 9,
         "Ayak": 13, "Koşu": 13, "Kazanan At / Ganyan / AGF": 48,
         "Bitiş Derecesi": 18,
     }
@@ -110,9 +86,14 @@ def table(df, height=250):
     view = df.copy()
     # Ekrandaki bütün tablo metinleri büyük harf; oran ve derece değerleri korunur.
     view = view.applymap(lambda v: str(v).upper() if isinstance(v, str) else v)
-    html = view.to_html(index=False, escape=True, border=0, classes="data-table")
-    html = html.replace("<table", "<table", 1).replace(">", ">" + colgroup, 1)
-    st.markdown(f'<div class="scroll-table" style="max-height:{height}px">{html}</div>', unsafe_allow_html=True)
+    is_featured = {"Son 6 Koşu", "Koşu", "AGF", "Muhtemel Ganyan"}.issubset(set(map(str, view.columns)))
+    table_class = "data-table featured-table" if is_featured else "data-table"
+    html = view.to_html(index=False, escape=True, border=0, classes=table_class)
+    html = html.replace(">", ">" + colgroup, 1)
+    if is_featured:
+        st.markdown(f'<div class="featured-table-wrap"><div class="scroll-table" style="max-height:{height}px">{html}</div></div>', unsafe_allow_html=True)
+    else:
+        st.markdown(f'<div class="scroll-table" style="max-height:{height}px">{html}</div>', unsafe_allow_html=True)
 
 def hero(program=False):
     cls = "hero program" if program else "hero"
@@ -165,101 +146,15 @@ if st.session_state.page == "Ana Sayfa":
 
         with st.container(border=True):
             title("♞", "Öne Çıkan Atlar ve Muhtemel Ganyan", "(En fazla 15 at)")
-            table(pd.DataFrame(d["featured"]), 305)
+            featured_df = pd.DataFrame(d["featured"]).rename(columns={"K / G / Y": "Koşu"})
+            table(featured_df, 285)
 
     with center_col:
         with st.container(border=True):
             title("▥", "AGF Oranları", "(Günün Öne Çıkan Koşusu)")
-            table(pd.DataFrame(d["agf"][:20]), 980)
+            table(pd.DataFrame(d["agf"][:20]), 620)
 
     with right_col:
         with st.container(border=True):
             title("🏆", "Yarış Sonuçları")
             choice = st.radio(
-                "Altılı türü", ["1. Altılı", "2. Altılı"],
-                horizontal=True, label_visibility="collapsed"
-            )
-            result = d["results"][choice]
-            st.markdown(
-                f'<div class="Big-muted" style="font-weight:900;color:#B2DAE4;margin:4px 0 10px">'
-                f'ŞEHİR / HİPODROM: {result.get("city", "İSTANBUL")}</div>',
-                unsafe_allow_html=True
-            )
-            result_rows = []
-            for leg in result["legs"]:
-                result_rows.append({
-                    "Ayak": leg.get("Ayak", ""),
-                    "Koşu": leg.get("Koşu", ""),
-                    "Kazanan At / Ganyan / AGF": f'{leg.get("Kazanan At", "")}  |  GANYAN: {leg.get("Ganyan", "-")}  |  AGF: {leg.get("AGF", "-")}',
-                    "Bitiş Derecesi": leg.get("Bitiş Derecesi", "")
-                })
-            table(pd.DataFrame(result_rows), 335)
-            st.markdown(
-                f'<div class="result-box"><b>{choice.upper()} SONUCU:</b> {result["sequence"]}'
-                f'<br><b>İKRAMİYE: {result["payout"]}</b>　|　'
-                f'<b>BİLEN KİŞİ: {result["winners"]}</b></div>',
-                unsafe_allow_html=True
-            )
-
-        with st.container(border=True):
-            title("♧", "Kazanma Olasılığı Tahmini", "(Örnek Model)")
-            for x in d["probabilities"]:
-                st.markdown(
-                    f'<div style="display:grid;grid-template-columns:112px 1fr 45px;gap:7px;'
-                    f'align-items:center;margin:13px 0;font-size:12px">'
-                    f'<span>{x["horse"]}</span>'
-                    f'<div style="height:18px;border-radius:5px;background:#292e48;overflow:hidden">'
-                    f'<div style="height:100%;width:{x["prob"]}%;'
-                    f'background:linear-gradient(90deg,#005BB3,#B2DAE4)"></div></div>'
-                    f'<b>%{str(x["prob"]).replace(".",",")}</b></div>',
-                    unsafe_allow_html=True
-                )
-
-    with st.container(border=True):
-        title("▦", "Yarış Programı", "(Yaklaşan Koşular)")
-        table(pd.DataFrame(d["program"]), 210)
-
-elif st.session_state.page == "Yarış Programı":
-    hero(True)
-    f1,f2=st.columns([1.1,1.2],gap="small")
-    with f1:
-        with st.container(border=True):
-            selected_date=st.date_input("Tarih",value=pd.Timestamp.today().date(),format="DD.MM.YYYY")
-    with f2:
-        with st.container(border=True):
-            track=st.selectbox("Hipodrom",["Tümü (3 Hipodrom)","İstanbul","Ankara","İzmir"])
-    races=get_race_program_data()
-    if track!="Tümü (3 Hipodrom)": races=[r for r in races if r["track"]==track]
-    with st.container(border=True):
-        x,y=st.columns([1,1.7])
-        with x: title("▦","Günün Yarış Programı",f"({track})")
-        with y: st.markdown('<div style="text-align:right;font-size:12px;padding-top:5px">🏇　İstanbul　 ⚑　10 Koşu　 ◷　İlk Koşu: 13:00　 🏁　Son Koşu: 18:00</div>',unsafe_allow_html=True)
-        selected=st.session_state.get("race_no",1)
-        race_cols=st.columns(10,gap="small")
-        for n,col in enumerate(race_cols,1):
-            r=next((v for v in races if v["no"]==n),None)
-            if r:
-                with col:
-                    if st.button(f'{n}. Koşu\n{r["time"]}',key=f"race_{n}",use_container_width=True,type="primary" if selected==n else "secondary"):
-                        st.session_state.race_no=n; st.rerun()
-    race=next((r for r in races if r["no"]==selected),None)
-    if race is None: st.info("Seçilen hipodromda bu koşu bulunmuyor.")
-    else:
-        detail=get_race_detail(selected)
-        with st.container(border=True):
-            p1,p2,p3,p4=st.columns([.55,1,1.7,1.6])
-            with p1: st.markdown(f'<div style="background:#005BB3;border-radius:10px;text-align:center;padding:12px 4px;font-weight:800">{race["no"]}. Koşu</div>',unsafe_allow_html=True)
-            with p2: st.markdown(f'<b>{race["track"]}</b><br><span class="small-muted">Hipodromu</span>',unsafe_allow_html=True)
-            with p3: st.markdown(f'<b>{race["name"]}</b><br><span class="small-muted">{race["class"]} / {race["age"]} / {race["distance"]} ({race["surface"]})</span>',unsafe_allow_html=True)
-            with p4: st.markdown(f'<div style="font-size:12px;text-align:right">◷ {race["time"]}<br>Koşan At: {race["runners"]}<br>Ödül: {race["prize"]}</div>',unsafe_allow_html=True)
-            tab=st.radio("Koşu detayları",["Koşu Bilgisi","Galoplar","Sabit Oranlar","Muhtemel Ganyan","Geçmiş Koşular"],horizontal=True,label_visibility="collapsed",key=f"race_detail_{selected}")
-            # Sağdaki Koşu Bilgileri ve Geçmiş Koşular kartları kaldırıldı.
-            # Ana yarış tablosu kullanılabilir genişliğin tamamını kaplar.
-            if tab=="Koşu Bilgisi": table(pd.DataFrame(detail["horses"]),650)
-            elif tab=="Sabit Oranlar": table(pd.DataFrame(detail["fixed_odds"]),650)
-            elif tab=="Muhtemel Ganyan": table(pd.DataFrame(detail["probable_odds"]),650)
-            elif tab=="Geçmiş Koşular": table(pd.DataFrame(detail["past_runs"]),650)
-            else: table(pd.DataFrame(detail["gallops"]),650)
-else:
-    hero()
-    with st.container(border=True): st.info(f"{st.session_state.page} sayfası sonraki geliştirme aşamasında hazırlanacaktır.")
