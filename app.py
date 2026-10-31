@@ -147,7 +147,7 @@ if st.session_state.page == "Ana Sayfa":
     with center_col:
         with st.container(border=True):
             title("▥", "AGF Oranları", "(Günün Öne Çıkan Koşusu)")
-            table(pd.DataFrame(d["agf"][:20]), 640)
+            table(pd.DataFrame(d["agf"][:20]), 650)
 
     with right_col:
         with st.container(border=True):
@@ -165,8 +165,7 @@ if st.session_state.page == "Ana Sayfa":
             table(pd.DataFrame(result["legs"]), 205)
             st.markdown(
                 f'<div class="result-box"><b>{choice} Sonucu:</b> {result["sequence"]}'
-                f'<br><b>İkramiye:</b> {result["payout"]}　|　'
-                f'<b>Bilen Kişi:</b> {result["winners"]}</div>',
+                f'<br><b>İkramiye:</b> {result["payout"]} </div>',
                 unsafe_allow_html=True
             )
 
