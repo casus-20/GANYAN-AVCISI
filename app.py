@@ -74,6 +74,12 @@ div[data-testid="stRadio"] label{{color:#f5f5fb}}
 [data-testid="stDataFrame"]{{border:1px solid #303754;border-radius:8px}}
 @media(max-width:1100px){{.block-container{{padding-left:.6rem;padding-right:.6rem}}.data-table{{font-size:11px}}}}
 @media(max-width:700px){{.hero{{padding:12px;min-height:100px;background-position:72% center}}.hero p{{max-width:72%;font-size:11px}}[data-testid="stVerticalBlockBorderWrapper"]{{padding:7px!important}}}}
+
+/* Ana sayfa işaretli alanların kolon sınırları */
+[data-testid="stHorizontalBlock"]{{align-items:stretch!important;min-width:0!important}}
+[data-testid="stHorizontalBlock"]>div{{min-width:0!important;max-width:100%!important}}
+[data-testid="stVerticalBlockBorderWrapper"]{{min-width:0!important;max-width:100%!important;overflow:hidden}}
+.scroll-table{{min-width:0!important}}
 </style>''', unsafe_allow_html=True)
 
 def title(icon, text, extra=""):
@@ -105,44 +111,82 @@ with st.sidebar:
 if st.session_state.page == "Ana Sayfa":
     hero()
     d = get_dashboard_data()
-    c1,c2,c3 = st.columns([1.15,0.82,1.00],gap="small")
-    with c1:
+
+    # Referans çizimdeki yerleşim: sol üst hava, sol alt atlar;
+    # orta AGF iki katman boyunca; sağ üst sonuçlar, sağ alt olasılık.
+    left_col, center_col, right_col = st.columns([1.15, 0.82, 1.00], gap="small")
+
+    with left_col:
         with st.container(border=True):
-            title("◉","Hava ve Pist Bilgileri","(En fazla 3 şehir)")
-            city_names=[x["city"] for x in d["weather"]]
-            selected_cities=st.multiselect("Şehir seç",city_names,default=city_names[:3],max_selections=3,label_visibility="collapsed",key="weather_cities")
-            chosen=[x for x in d["weather"] if x["city"] in selected_cities]
-            cc=st.columns(max(1,len(chosen)),gap="small")
-            for col, city in zip(cc,chosen):
+            title("◉", "Hava ve Pist Bilgileri", "(En fazla 3 şehir)")
+            city_names = [x["city"] for x in d["weather"]]
+            selected_cities = st.multiselect(
+                "Şehir seç", city_names, default=city_names[:3],
+                max_selections=3, label_visibility="collapsed",
+                key="weather_cities"
+            )
+            chosen = [x for x in d["weather"] if x["city"] in selected_cities]
+            city_cols = st.columns(max(1, len(chosen)), gap="small")
+            for col, city in zip(city_cols, chosen):
                 with col:
-                    st.markdown(f'''<div class="city-card"><div class="city-name">📍 {city["city"]}</div><div style="font-size:25px">{city["icon"]}</div><div class="city-temp">{city["temp"]}°C</div><div class="small-muted">{city["condition"]}</div><div class="city-meta"><span>Rüzgâr</span><b>{city["wind"]}</b></div><div class="city-meta"><span>Nem</span><b>{city["humidity"]}</b></div><div class="city-meta"><span>Pist</span><b>{city["track"]}</b></div><div class="city-meta"><span>Pist Durumu</span><b>{city["track_state"]}</b></div></div>''',unsafe_allow_html=True)
-    with c2:
+                    st.markdown(f"""<div class="city-card">
+                        <div class="city-name">📍 {city["city"]}</div>
+                        <div style="font-size:25px">{city["icon"]}</div>
+                        <div class="city-temp">{city["temp"]}°C</div>
+                        <div class="small-muted">{city["condition"]}</div>
+                        <div class="city-meta"><span>Rüzgâr</span><b>{city["wind"]}</b></div>
+                        <div class="city-meta"><span>Nem</span><b>{city["humidity"]}</b></div>
+                        <div class="city-meta"><span>Pist</span><b>{city["track"]}</b></div>
+                        <div class="city-meta"><span>Pist Durumu</span><b>{city["track_state"]}</b></div>
+                        </div>""", unsafe_allow_html=True)
+
         with st.container(border=True):
-            title("▥","AGF Oranları","(Günün Öne Çıkan Koşusu)")
-            table(pd.DataFrame(d["agf"][:10]),250)
-    with c3:
+            title("♞", "Öne Çıkan Atlar ve Muhtemel Ganyan", "(En fazla 15 at)")
+            table(pd.DataFrame(d["featured"]), 285)
+
+    with center_col:
         with st.container(border=True):
-            title("🏆","Yarış Sonuçları")
-            choice=st.radio("Altılı türü",["1. Altılı","2. Altılı"],horizontal=True,label_visibility="collapsed")
-            result=d["results"][choice]
-            st.markdown(f'<div class="small-muted" style="font-weight:900;color:#B2DAE4;margin:2px 0 6px">ŞEHİR / HİPODROM: {result.get("city", "İSTANBUL")}</div>',unsafe_allow_html=True)
-            table(pd.DataFrame(result["legs"]),205)
-            st.markdown(f'<div class="result-box"><b>{choice} Sonucu:</b> {result["sequence"]}<br><b>İkramiye:</b> {result["payout"]}　|　<b>Bilen Kişi:</b> {result["winners"]}</div>',unsafe_allow_html=True)
-    # Alt paneller üst sıradaki işaretli kutularla aynı üç kolon ızgarasına hizalanır.
-    # Orta kolon (AGF kutusunun altı) bilinçli olarak boş bırakılır.
-    a,_,b=st.columns([1.15,0.82,1.00],gap="small")
-    with a:
+            title("▥", "AGF Oranları", "(Günün Öne Çıkan Koşusu)")
+            table(pd.DataFrame(d["agf"][:20]), 620)
+
+    with right_col:
         with st.container(border=True):
-            title("♞","Öne Çıkan Atlar ve Muhtemel Ganyan","(En fazla 15 at)")
-            table(pd.DataFrame(d["featured"]),285)
-    with b:
+            title("🏆", "Yarış Sonuçları")
+            choice = st.radio(
+                "Altılı türü", ["1. Altılı", "2. Altılı"],
+                horizontal=True, label_visibility="collapsed"
+            )
+            result = d["results"][choice]
+            st.markdown(
+                f'<div class="small-muted" style="font-weight:900;color:#B2DAE4;margin:2px 0 6px">'
+                f'ŞEHİR / HİPODROM: {result.get("city", "İSTANBUL")}</div>',
+                unsafe_allow_html=True
+            )
+            table(pd.DataFrame(result["legs"]), 205)
+            st.markdown(
+                f'<div class="result-box"><b>{choice} Sonucu:</b> {result["sequence"]}'
+                f'<br><b>İkramiye:</b> {result["payout"]}　|　'
+                f'<b>Bilen Kişi:</b> {result["winners"]}</div>',
+                unsafe_allow_html=True
+            )
+
         with st.container(border=True):
-            title("♧","Kazanma Olasılığı Tahmini","(Örnek Model)")
+            title("♧", "Kazanma Olasılığı Tahmini", "(Örnek Model)")
             for x in d["probabilities"]:
-                st.markdown(f'<div style="display:grid;grid-template-columns:112px 1fr 45px;gap:7px;align-items:center;margin:13px 0;font-size:12px"><span>{x["horse"]}</span><div style="height:18px;border-radius:5px;background:#292e48;overflow:hidden"><div style="height:100%;width:{x["prob"]}%;background:linear-gradient(90deg,#005BB3,#B2DAE4)"></div></div><b>%{str(x["prob"]).replace(".",",")}</b></div>',unsafe_allow_html=True)
+                st.markdown(
+                    f'<div style="display:grid;grid-template-columns:112px 1fr 45px;gap:7px;'
+                    f'align-items:center;margin:13px 0;font-size:12px">'
+                    f'<span>{x["horse"]}</span>'
+                    f'<div style="height:18px;border-radius:5px;background:#292e48;overflow:hidden">'
+                    f'<div style="height:100%;width:{x["prob"]}%;'
+                    f'background:linear-gradient(90deg,#005BB3,#B2DAE4)"></div></div>'
+                    f'<b>%{str(x["prob"]).replace(".",",")}</b></div>',
+                    unsafe_allow_html=True
+                )
+
     with st.container(border=True):
-        title("▦","Yarış Programı","(Yaklaşan Koşular)")
-        table(pd.DataFrame(d["program"]),210)
+        title("▦", "Yarış Programı", "(Yaklaşan Koşular)")
+        table(pd.DataFrame(d["program"]), 210)
 
 elif st.session_state.page == "Yarış Programı":
     hero(True)
