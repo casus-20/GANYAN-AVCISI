@@ -49,13 +49,13 @@ HORSE_COLS=["Sıra","At Adı","Yaş / Cins","Orijin (Baba - Anne)","Sıklet","Jo
 
 def get_dashboard_data():
     legs1=[
-     {"Ayak":"1. Ayak","Koşu":"1. Koşu","Kazanan At":"Kara Rüzgar","Bitiş Derecesi":"1:24.36"},
-     {"Ayak":"2. Ayak","Koşu":"2. Koşu","Kazanan At":"Mavi İnci","Bitiş Derecesi":"1:37.11"},
-     {"Ayak":"3. Ayak","Koşu":"3. Koşu","Kazanan At":"Altın Nefes","Bitiş Derecesi":"1:49.21"},
-     {"Ayak":"4. Ayak","Koşu":"4. Koşu","Kazanan At":"Deniz Aslanı","Bitiş Derecesi":"1:23.78"},
-     {"Ayak":"5. Ayak","Koşu":"5. Koşu","Kazanan At":"Yıldızhan","Bitiş Derecesi":"1:36.42"},
-     {"Ayak":"6. Ayak","Koşu":"6. Koşu","Kazanan At":"Kırat Beyi","Bitiş Derecesi":"2:02.15"}]
-    legs2=[{"Ayak":f"{i+1}. Ayak","Koşu":f"{i+5}. Koşu","Kazanan At":NAMES[(i+2)%12],"Bitiş Derecesi":["1:36.42","2:02.15","1:24.36","1:37.11","1:49.21","1:23.78"][i]} for i in range(6)]
+     {"Ayak":"1. Ayak","Koşu":"1. Koşu","Kazanan At":"Kara Rüzgar","Ganyan":"2,45","AGF":"%32,1","Bitiş Derecesi":"1:24.36"},
+     {"Ayak":"2. Ayak","Koşu":"2. Koşu","Kazanan At":"Mavi İnci","Ganyan":"3,20","AGF":"%21,4","Bitiş Derecesi":"1:37.11"},
+     {"Ayak":"3. Ayak","Koşu":"3. Koşu","Kazanan At":"Altın Nefes","Ganyan":"8,10","AGF":"%6,8","Bitiş Derecesi":"1:49.21"},
+     {"Ayak":"4. Ayak","Koşu":"4. Koşu","Kazanan At":"Deniz Aslanı","Ganyan":"9,35","AGF":"%5,1","Bitiş Derecesi":"1:23.78"},
+     {"Ayak":"5. Ayak","Koşu":"5. Koşu","Kazanan At":"Yıldızhan","Ganyan":"4,10","AGF":"%14,8","Bitiş Derecesi":"1:36.42"},
+     {"Ayak":"6. Ayak","Koşu":"6. Koşu","Kazanan At":"Kırat Beyi","Ganyan":"11,20","AGF":"%4,8","Bitiş Derecesi":"2:02.15"}]
+    legs2=[{"Ayak":f"{i+1}. Ayak","Koşu":f"{i+5}. Koşu","Kazanan At":NAMES[(i+2)%12],"Ganyan":["4,10","8,10","9,35","11,20","2,45","3,20"][i],"AGF":["%14,8","%6,8","%5,1","%4,8","%32,1","%21,4"][i],"Bitiş Derecesi":["1:36.42","2:02.15","1:24.36","1:37.11","1:49.21","1:23.78"][i]} for i in range(6)]
     return {"weather":deepcopy(WEATHER),"agf":deepcopy(AGF),"featured":deepcopy(FEATURED),
      "probabilities":[{"horse":"(4) Kara Rüzgar","prob":42.1},{"horse":"(7) Mavi İnci","prob":18.6},{"horse":"(2) Yıldızhan","prob":13.9},{"horse":"(5) Sürat Kralı","prob":11.7},{"horse":"(1) Beyaz Şimşek","prob":6.8}],
      "results":{"1. Altılı":{"city":"İstanbul","legs":legs1,"sequence":"4 - 7 - 3 - 1 - 6 - 2","payout":"426.580,00 ₺","winners":"12"},"2. Altılı":{"city":"İstanbul","legs":legs2,"sequence":"3 - 1 - 6 - 2 - 4 - 7","payout":"184.250,00 ₺","winners":"8"}},
