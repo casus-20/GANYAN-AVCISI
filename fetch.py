@@ -156,11 +156,20 @@ def _tjk_parse_horse_tables(html):
     # TJK programında eküri bilgisi çoğunlukla tablonun altında
     # [(1)AT ADI,(5)DİĞER AT] eküridir. biçiminde yayımlanır.
     ekuri_names = set()
-    for group in re.findall(r"\[([^\]]+)\]\s*ek[uü]r[iı]dir", page_text, flags=re.I):
-        for entry in re.split(r"\s*,\s*", group):
-            entry = re.sub(r"^\(?\d+\)?\s*", "", entry).strip(" ()")
-            if entry:
-                ekuri_names.add(_tjk_norm(entry))
+    # TJK bir koşuda birden fazla eküri grubu yayımladığında biçim şöyledir:
+    # [(1)AT A,(10)AT B],[(14)AT C,(16)AT D] eküridir.
+    # Önceki desen yalnızca "eküridir" kelimesinin hemen önündeki son
+    # köşeli parantez grubunu yakaladığı için ilk gruptaki atları kaçırıyordu.
+    ekuri_blocks = re.findall(
+        r"((?:\[[^\]]+\]\s*,?\s*)+)ek[uü]r[iı]dir",
+        page_text, flags=re.I
+    )
+    for block in ekuri_blocks:
+        for group in re.findall(r"\[([^\]]+)\]", block):
+            for entry in re.split(r"\s*,\s*", group):
+                entry = re.sub(r"^\(?\d+\)?\s*", "", entry).strip(" ()")
+                if entry:
+                    ekuri_names.add(_tjk_norm(entry))
 
     tables=[]
     for table in soup.find_all("table"):
@@ -223,19 +232,7 @@ def _tjk_parse_horse_tables(html):
             clean_horse_name = re.sub(r"\s*\(\s*ko[sş]maz\s*\)", "", raw_horse_name, flags=re.I).strip()
             name_for_ekuri = re.sub(r"\s*\(\d{1,2}\)", "", clean_horse_name)
             name_for_ekuri = re.sub(r"\s*image\s*$", "", name_for_ekuri, flags=re.I).strip()
-            # TJK at hücresinde at adından sonra DB/SK/KG gibi ekipman
-            # kısaltmaları gelebilir; eküri listesinde bu ekler bulunmaz.
-            name_for_ekuri = re.sub(
-                r"\\s+(?:DB|SK|KG|K|G|SG|GKR|D|YP|KGK|SKG)(?:\\s+(?:DB|SK|KG|K|G|SG|GKR|D|YP|KGK|SKG))*\\s*$",
-                "", name_for_ekuri, flags=re.I
-            ).strip()
-            normalized_horse_name = _tjk_norm(name_for_ekuri)
-            is_ekuri = any(
-                normalized_horse_name == ekuri_name
-                or normalized_horse_name.startswith(ekuri_name + " ")
-                or ekuri_name.startswith(normalized_horse_name + " ")
-                for ekuri_name in ekuri_names if ekuri_name
-            )
+            is_ekuri = _tjk_norm(name_for_ekuri) in ekuri_names
             horses.append({
                 "_at_id": at_id,
                 "Koşmaz": status_is_nonrunner,
