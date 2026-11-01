@@ -479,6 +479,38 @@ elif st.session_state.page == "Yarış Programı":
         key=lambda r: int(r.get("no") or r.get("race_number") or 999)
     )
 
+    def _program_surface(race_obj):
+        """Pist bilgisini TJK yanıtındaki farklı alanlardan güvenli biçimde bul."""
+        if not isinstance(race_obj, dict):
+            return ""
+        meta_obj = race_obj.get("meta") if isinstance(race_obj.get("meta"), dict) else {}
+        candidates = [
+            race_obj.get("surface"), race_obj.get("track"),
+            race_obj.get("pist"), race_obj.get("track_type"),
+            meta_obj.get("surface"), meta_obj.get("track"),
+            meta_obj.get("pist"), race_obj.get("details"),
+            race_obj.get("condition"), race_obj.get("name"),
+        ]
+        value = " ".join(str(v or "") for v in candidates).casefold()
+        # Önce sentetik kontrol edilir; bazı TJK metinlerinde 'kum' da birlikte geçebilir.
+        if "sentetik" in value:
+            return "sentetik"
+        if "çim" in value or "cim" in value:
+            return "çim"
+        if "kum" in value:
+            return "kum"
+        return ""
+
+    def _program_surface_colors(surface_value):
+        key = str(surface_value or "").casefold()
+        if "sentetik" in key:
+            return "#F2D34F", "#241D08"  # parlak sarı, koyu yazı
+        if "kum" in key:
+            return "#E87516", "#FFFFFF"  # turuncu, beyaz yazı
+        if "çim" in key or "cim" in key:
+            return "#238B45", "#FFFFFF"  # yeşil, beyaz yazı
+        return "#35415e", "#ffffff"
+
     with st.container(border=True):
         x, y = st.columns([1, 1.7])
         with x:
@@ -500,15 +532,8 @@ elif st.session_state.page == "Yarış Programı":
                 race_item = races[idx]
                 race_no = int(race_item.get("no") or race_item.get("race_number") or idx + 1)
                 with col:
-                    race_surface = str(race_item.get("surface") or "").casefold()
-                    if "kum" in race_surface:
-                        button_color, button_text = "#b58a16", "#17130a"
-                    elif "çim" in race_surface or "cim" in race_surface:
-                        button_color, button_text = "#16834a", "#ffffff"
-                    elif "sentetik" in race_surface:
-                        button_color, button_text = "#7136b8", "#ffffff"
-                    else:
-                        button_color, button_text = "#35415e", "#ffffff"
+                    race_surface = _program_surface(race_item)
+                    button_color, button_text = _program_surface_colors(race_surface)
                     race_button_key = f"tjk_race_{selected_date:%Y%m%d}_{track}_{race_no}"
                     st.markdown(
                         f'<style>div.st-key-{race_button_key} button{{background:{button_color}!important;'
@@ -538,7 +563,7 @@ elif st.session_state.page == "Yarış Programı":
         horses = race.get("horses", []) if isinstance(race.get("horses"), list) else []
         meta = race.get("meta", {}) if isinstance(race.get("meta"), dict) else {}
         distance = race.get("distance") or meta.get("distance") or "—"
-        surface = race.get("surface") or meta.get("surface") or "—"
+        surface = _program_surface(race) or race.get("surface") or meta.get("surface") or "—"
         race_name = race.get("name") or race.get("condition") or meta.get("raceName") or f"{selected}. KOŞU"
 
         with st.container(border=True):
@@ -546,19 +571,10 @@ elif st.session_state.page == "Yarış Programı":
             race_class_text = str(race.get("class", meta.get("class", "")) or "")
             race_details = str(race.get("details") or "").strip()
             surface_key = str(surface or "").casefold()
-            # Pist rengi koşu türünden bağımsızdır: Kum=sarı, Çim=yeşil, Sentetik=mor.
-            if "kum" in surface_key:
-                race_color = "#b58a16"
-                race_text_color = "#17130a"
-            elif "çim" in surface_key or "cim" in surface_key:
-                race_color = "#16834a"
-                race_text_color = "#ffffff"
-            elif "sentetik" in surface_key:
-                race_color = "#7136b8"
-                race_text_color = "#ffffff"
-            else:
-                race_color = "#1769aa"
-                race_text_color = "#ffffff"
+            # Aynı pist renkleri hem yatay koşu düğmelerinde hem bilgi bandında kullanılır.
+            race_color, race_text_color = _program_surface_colors(surface_key)
+            if race_color == "#35415e":
+                race_color, race_text_color = "#1769aa", "#ffffff"
 
             # Tek ve dolu bir başlık bandı: boş kolonlar kaldırıldı.
             age_text = str(race.get("age", meta.get("age", "")) or "").strip()
