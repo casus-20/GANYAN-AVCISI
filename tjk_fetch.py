@@ -447,10 +447,17 @@ def _fetch_tjk_daily(date_value, city, timeout=45):
     })
     if not query.get("Era"):
         query.pop("Era", None)
-    url = urlunparse(("https", "www.tjk.org", path, "", urlencode(query), ""))
+    # TJK resmi bağlantılarında tarih GG/AA/YYYY olarak ham "/" ile gönderilir.
+    # urlencode() varsayılan olarak "/" karakterini %2F yapar; TJK/WAF bu
+    # kodlanmış URL'yi 403 ile reddedebiliyor. Slash karakterini koru.
+    url = urlunparse(("https", "www.tjk.org", path, "", urlencode(query, safe="/"), ""))
 
     try:
-        response = _get_http_session().get(url, timeout=timeout, headers=_tjk_headers())
+        request_headers = _tjk_headers()
+        request_headers["Referer"] = (
+            f"{TJK_BASE}/TR/Kurumsal/Info/Page/GunlukYarisProgrami?QueryParameter_Tarih={dmy}"
+        )
+        response = _get_http_session().get(url, timeout=timeout, headers=request_headers)
         if response.status_code >= 400:
             raise RuntimeError(f"TJK HTTP {response.status_code}: {url}")
 
