@@ -164,10 +164,22 @@ def _tjk_parse_horse_tables(html):
         no=idx
         meta.setdefault(no,{"no":no,"time":"","name":"","class":"","age":"","distance":"","surface":"","prize":""})
         horses=[]
-        for row in rows:
+        source_rows = table.find_all("tr")
+        for row_index, row in enumerate(rows):
             def v(*keys):
                 return next((row[k] for k in keys if row.get(k)),"")
+            source_cells = source_rows[hidx + 1 + row_index].find_all(["td", "th"], recursive=False) if hidx + 1 + row_index < len(source_rows) else []
+            at_id = ""
+            for cell in source_cells:
+                for anchor in cell.find_all("a", href=True):
+                    match = re.search(r"(?:AtId|AtID|atId)=(\d+)", anchor.get("href", ""), re.I)
+                    if match:
+                        at_id = match.group(1)
+                        break
+                if at_id:
+                    break
             horses.append({
+                "_at_id": at_id,
                 "Sıra":v("n","sira","forma"),"At Adı":v("atisimi","atismi","atadi"),
                 "Yaş / Cins":v("yas","yascins","yascinsiyet"),"Orijin (Baba - Anne)":v("orijinbabaanne","orijinbabaannen","orijinbabaannesi","orijin"),
                 "Sıklet":v("siklet","kilo"),"Jokey":v("jokey"),"Sahip":v("sahip","atsahibi"),
@@ -207,3 +219,51 @@ def get_tjk_race_program(date_text):
             continue
     if not tracks: raise RuntimeError("TJK sayfasına erişildi ancak seçilen tarihin koşu tabloları okunamadı.")
     return {"tracks":tracks,"races_by_track":races_by_track,"details":details}
+
+
+@__import__("functools").lru_cache(maxsize=512)
+def _cached_tjk_horse_history(at_id):
+    """AtKosuBilgileri sayfasından geçmiş yarışları doğrudan TJK'dan alır."""
+    import requests
+    from bs4 import BeautifulSoup
+    urls = [
+        f"https://www.tjk.org/TR/kurumsal/Query/ConnectedPage/AtKosuBilgileri?1=1&QueryParameter_AtId={at_id}",
+        f"https://www.tjk.org/TR/map/Query/ConnectedPage/AtKosuBilgileri?1=1&QueryParameter_AtId={at_id}",
+    ]
+    session = requests.Session()
+    session.headers.update({"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36", "Referer":"https://www.tjk.org/"})
+    last_error = None
+    aliases = {"tarih":"Tarih", "sehir":"Hipodrom", "msf":"Mesafe", "mesafe":"Mesafe", "pist":"Pist", "s":"Sıra", "derece":"Derece", "siklet":"Sıklet", "jokey":"Jokey", "st":"St.", "gny":"Gny", "grup":"Grup", "ant":"Antrenör", "sahip":"Sahip", "hp":"HP", "ikramiye":"İkramiye", "s20":"Son 20"}
+    def norm(x):
+        x=x.lower().translate(str.maketrans("ıişğüöç","iisguoc"))
+        return re.sub(r"[^a-z0-9]+","",x)
+    for url in urls:
+        try:
+            r=session.get(url,timeout=25); r.raise_for_status()
+            soup=BeautifulSoup(r.text,"html.parser")
+            for table in soup.find_all("table"):
+                trs=table.find_all("tr")
+                for hi,tr in enumerate(trs[:12]):
+                    hs=[norm(c.get_text(" ",strip=True)) for c in tr.find_all(["th","td"],recursive=False)]
+                    if "tarih" not in hs or not ({"derece","pist"}&set(hs)):
+                        continue
+                    cols=[aliases.get(h,h) for h in hs]
+                    out=[]
+                    for rr in trs[hi+1:]:
+                        vals=[c.get_text(" ",strip=True) for c in rr.find_all(["td","th"],recursive=False)]
+                        if len(vals)<5 or not re.search(r"\d{1,2}[./]\d{1,2}[./]20\d{2}", vals[0] if vals else ""):
+                            continue
+                        item={cols[i]:(vals[i] if i<len(vals) else "") for i in range(len(cols))}
+                        item["Tarih"]=vals[0]
+                        out.append(item)
+                    if out:
+                        return out
+            last_error="TJK geçmiş yarış tablosu bulunamadı veya boş döndü"
+        except Exception as exc:
+            last_error=str(exc)
+    raise RuntimeError(last_error or "TJK geçmiş yarış bilgisi alınamadı")
+
+def get_tjk_horse_history(at_id):
+    if not at_id:
+        return []
+    return _cached_tjk_horse_history(str(at_id))
