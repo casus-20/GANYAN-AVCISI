@@ -135,11 +135,14 @@ def _tjk_parse_horse_tables(html):
         no=int(m.group(1)); stop=matches[i+1].start() if i+1<len(matches) else min(len(page_text),m.end()+5000)
         chunk=page_text[m.start():stop]; lines=[x.strip() for x in chunk.splitlines() if x.strip()]
         # Saat bazı TJK sayfalarında koşu başlığından hemen önceki satırda bulunur.
-        prefix_start = matches[i-1].end() if i > 0 else max(0, m.start()-240)
-        prefix = page_text[prefix_start:m.start()]
-        time_scope = prefix + "\\n" + chunk
-        time_matches = list(re.finditer(r"(?<!\\d)(?:[01]?\\d|2[0-3]):[0-5]\\d(?!\\d)", time_scope))
-        tm = time_matches[-1] if time_matches else None
+        # Saati yalnızca koşu etiketinin bulunduğu satırdan al; kilo/primdeki
+        # 0.20 gibi ondalık değerleri saat sanma.
+        # Saat metni HTML'de ayrı satır/etiket olarak gelebilir.
+        after_text = re.sub(r"\s+", " ", page_text[m.end():m.end()+140]).strip()
+        before_text = re.sub(r"\s+", " ", page_text[max(0, m.start()-100):m.start()]).strip()
+        tm = re.search(r"(?<!\d)(?:[01]?\d|2[0-3])[:.][0-5]\d(?!\d)", after_text)
+        if not tm:
+            tm = re.search(r"(?<!\d)(?:[01]?\d|2[0-3])[:.][0-5]\d(?!\d)", before_text)
         dist=re.search(r"\b(\d{3,4})\s*(?:m|metre)\b",chunk,re.I)
         surf=re.search(r"\b(Çim|Kum|Sentetik)\b",chunk,re.I)
         prize=re.search(r"(?:₺\s*)?(\d{1,3}(?:\.\d{3})+(?:,\d{2})?)\s*(?:₺|TL)",chunk,re.I)
@@ -148,7 +151,7 @@ def _tjk_parse_horse_tables(html):
         cls=cls_match.group(0).strip() if cls_match else ""
         age_match=re.search(r"(?i)(\d+\s*(?:ve\s*yukarı\s*)?yaşlı\s+(?:ingilizler|araplar)|\d+\s*yaşlı\s+(?:ingiliz|arap))",chunk)
         age=age_match.group(0).strip() if age_match else ""
-        meta[no]={"no":no,"time":tm.group(0) if tm else "","name":name,"class":cls,"age":age,"distance":f"{dist.group(1)} m" if dist else "","surface":surf.group(1).title() if surf else "","prize":f"{prize.group(1)} ₺" if prize else ""}
+        meta[no]={"no":no,"time":tm.group(0).replace(".", ":") if tm else "","name":name,"class":cls,"age":age,"distance":f"{dist.group(1)} m" if dist else "","surface":surf.group(1).title() if surf else "","prize":f"{prize.group(1)} ₺" if prize else ""}
 
     # TJK programında eküri bilgisi çoğunlukla tablonun altında
     # [(1)AT ADI,(5)DİĞER AT] eküridir. biçiminde yayımlanır.
@@ -209,11 +212,13 @@ def _tjk_parse_horse_tables(html):
                     for attr in ("title", "data-original-title", "data-content", "data-tooltip", "aria-label"):
                         value = node.get(attr) if hasattr(node, "get") else None
                         if value:
-                            cleaned = re.sub(r"\\s+", " ", str(value)).strip()
+                            cleaned = re.sub(r"\s+", " ", str(value)).strip()
                             if cleaned and cleaned not in info_parts:
                                 info_parts.append(cleaned)
                 eid_info = " | ".join(info_parts)
             raw_horse_name = v("atisimi","atismi","atadi")
+            horse_number_match = re.search(r"\(\s*(\d{1,2})\s*\)", raw_horse_name)
+            horse_number = horse_number_match.group(1) if horse_number_match else ""
             status_is_nonrunner = bool(re.search(r"\(\s*ko[sş]maz\s*\)", raw_horse_name, flags=re.I))
             clean_horse_name = re.sub(r"\s*\(\s*ko[sş]maz\s*\)", "", raw_horse_name, flags=re.I).strip()
             name_for_ekuri = re.sub(r"\s*\(\d{1,2}\)", "", clean_horse_name)
@@ -224,7 +229,7 @@ def _tjk_parse_horse_tables(html):
                 "Koşmaz": status_is_nonrunner,
                 "Eküri": is_ekuri,
                 "EİD Bilgi": eid_info,
-                "Sıra":v("n","sira","forma"),"At Adı":clean_horse_name,
+                "Sıra":v("n","sira","forma"),"At No":horse_number,"At Adı":clean_horse_name,
                 "Yaş / Cins":v("yas","yascins","yascinsiyet"),"Orijin (Baba - Anne)":v("orijinbabaanne","orijinbabaannen","orijinbabaannesi","orijin"),
                 "Sıklet":v("siklet","kilo"),"Jokey":v("jokey"),"Sahip":v("sahip","atsahibi"),
                 "Antrenör":v("antrenor"),"St.":v("st","start"),"HP":v("hp"),"Son 6 Y.":v("son6y","son6yaris","form"),
@@ -232,7 +237,7 @@ def _tjk_parse_horse_tables(html):
                 # TJK sayfa sürümlerinde S20 başlığı farklı yazımlarla gelebiliyor.
                 "s20":v("s20","s20y","s20kosu","s20kosular","son20","son20y","son20yaris","son20kosu","son20kosular","son20kosulari","son20yarisi"),
                 "EİD":v("eniyid","eniyiderece","eid"),"Sabit Oran":v("sabit oran","oran"),
-                "Muhtemel Ganyan":v("gny","ganyan"), "AGF":v("agf","agforani","agfyuzde")})
+                "Muhtemel Ganyan":v("gny","ganyan"),"AGF":v("agf","agforani","agfyuzde")})
         race=meta[no]; race["runners"]=len(horses)
         result[no]={"race":race,"horses":horses,
             "fixed_odds":[{"Sıra":h["Sıra"],"At Adı":h["At Adı"],"Sabit Oran":h["Sabit Oran"]} for h in horses if h["Sabit Oran"]],
@@ -401,6 +406,7 @@ def get_tjk_program(date_value, city):
         for h in detail.get("horses", []):
             horses.append({
                 "no": h.get("Sıra") or "",
+                "horseNumber": h.get("At No") or "",
                 "name": h.get("At Adı") or "",
                 "nonRunner": bool(h.get("Koşmaz")),
                 "ekuri": bool(h.get("Eküri")),
