@@ -179,8 +179,22 @@ def _tjk_parse_horse_tables(html):
                         break
                 if at_id:
                     break
+            eid_info = ""
+            eid_index = next((i for i, key in enumerate(headers) if key in {"eniyid", "eniyiderece", "eid"}), None)
+            if eid_index is not None and eid_index < len(source_cells):
+                eid_cell = source_cells[eid_index]
+                info_parts = []
+                for node in [eid_cell] + eid_cell.find_all(True):
+                    for attr in ("title", "data-original-title", "data-content", "data-tooltip", "aria-label"):
+                        value = node.get(attr) if hasattr(node, "get") else None
+                        if value:
+                            cleaned = re.sub(r"\\s+", " ", str(value)).strip()
+                            if cleaned and cleaned not in info_parts:
+                                info_parts.append(cleaned)
+                eid_info = " | ".join(info_parts)
             horses.append({
                 "_at_id": at_id,
+                "EİD Bilgi": eid_info,
                 "Sıra":v("n","sira","forma"),"At Adı":v("atisimi","atismi","atadi"),
                 "Yaş / Cins":v("yas","yascins","yascinsiyet"),"Orijin (Baba - Anne)":v("orijinbabaanne","orijinbabaannen","orijinbabaannesi","orijin"),
                 "Sıklet":v("siklet","kilo"),"Jokey":v("jokey"),"Sahip":v("sahip","atsahibi"),
@@ -318,6 +332,7 @@ def get_tjk_program(date_value, city):
                 "trainer": h.get("Antrenör") or "", "st": h.get("St.") or "",
                 "hp": h.get("HP") or "", "last6": h.get("Son 6 Y.") or "",
                 "kgs": h.get("KGS") or "", "bestTime": h.get("EİD") or "",
+                "bestInfo": h.get("EİD Bilgi") or "",
                 "odds": h.get("Muhtemel Ganyan") or h.get("Sabit Oran") or "", "agf": "",
                 "atId": h.get("_at_id") or "",
             })
