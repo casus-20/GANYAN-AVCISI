@@ -531,7 +531,7 @@ def render():
         """
         <div class="hero">
             <h1><span class="accent">GANYAN</span> AVCISI</h1>
-            <p>At yarışı analiz ve istatistik platformu</p>
+            <p>YARIŞ ANALİZİ</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -563,56 +563,6 @@ def render():
 
     # Manuel analiz kaldırıldı; bu sayfa yalnızca gerçek TJK verisiyle çalışır.
     st.session_state["analysis_mode"] = "Gerçek veri"
-
-
-    # ============================================================
-    # ANALİZ KONTROLLERİ
-    # ============================================================
-
-    def _request_real_analysis():
-        st.session_state["analysis_mode"] = "Gerçek veri"
-        st.session_state["real_analysis_requested"] = True
-        st.session_state["real_analysis_done"] = False
-
-
-    def _request_manual_analysis():
-        st.session_state["analysis_mode"] = "Manuel"
-        st.session_state["real_analysis_requested"] = False
-        st.session_state["real_analysis_done"] = False
-
-
-    btn1, btn2, btn3, mode_col = st.columns([1.15, 1.15, 1.15, 0.65])
-    with btn1:
-        st.empty()
-    with btn2:
-        _real_clicked = st.button(
-            "🔎 GERÇEK VERİ İLE ANALİZ ET",
-            key="real_analysis_button_top",
-            use_container_width=True,
-            type="primary",
-        )
-        # Callback yerine tıklama sonucunu doğrudan state'e yazıyoruz.
-        # Böylece Streamlit rerun sırasında gerçek analiz isteği kaybolmaz.
-        if _real_clicked:
-            st.session_state["analysis_mode"] = "Gerçek veri"
-            st.session_state["real_analysis_requested"] = True
-            st.session_state["real_analysis_done"] = False
-    with btn3:
-        st.button(
-            "🧠 MANUEL ANALİZ",
-            key="manual_analysis_button_top",
-            help="Manuel mod yalnızca TJK programını gösterir; skor/REYTİNG için gerçek veri analizi gerekir.",
-            use_container_width=True,
-            on_click=_request_manual_analysis,
-            type="secondary",
-        )
-    with mode_col:
-        current_mode = st.session_state.get("analysis_mode", "Gerçek veri")
-        badge = "Gerçek veri" if current_mode == "Gerçek veri" else "Manuel"
-        st.markdown(
-            f"<div class='ri-mode-badge'>Mod: <b>{badge}</b></div>",
-            unsafe_allow_html=True,
-        )
 
 
     # ============================================================
