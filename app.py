@@ -97,6 +97,7 @@ section[data-testid="stSidebar"] .stButton>button:hover{{background:#343d61!impo
 .race-program-table tbody tr{{height:39px!important;min-height:39px!important}}
 .race-program-table td.rp-eid-cell{{white-space:nowrap!important;overflow:visible!important}}
 .race-program-table .rp-eid-value{{display:inline-block;position:relative;color:#d40000!important;font-weight:900!important;cursor:help!important;border-bottom:1px dotted #d40000!important}}
+.race-program-table .rp-extra-weight,.race-program-table .rp-st-marker{{color:#d40000!important;font-size:9px!important;font-weight:900!important;white-space:nowrap!important}}
 
 .race-program-table tbody tr:nth-child(odd) td{{background:#e7e7e5!important}}
 .race-program-table tbody tr:nth-child(even) td{{background:#f7f7f5!important}}
@@ -563,7 +564,7 @@ elif st.session_state.page == "Yarış Programı":
                     if not raw:
                         return ""
                     # TJK kilo alanındaki baz kilo ve fazla kilo bilgisini ayır.
-                    m = _re.search(r"(?P<base>\d+(?:[.,]\d+)?)\s*(?:KG)?\s*(?P<extra>[+]\s*\d+(?:[.,]\d+)?)?", raw, flags=_re.I)
+                    m = _re.search(r"(?P<base>\d+(?:[.,]\d+)?)\s*(?:KG|KİLO|KILO)?\s*(?P<extra>[+]\s*\d+(?:[.,]\d+)?)?", raw, flags=_re.I)
                     if not m:
                         return raw
                     base = m.group("base").replace(".", ",")
@@ -643,7 +644,7 @@ elif st.session_state.page == "Yarış Programı":
                         "HP": h.get("hp") or "",
                         "Son 6 Y.": h.get("form") or h.get("last6") or "",
                         "KGS": h.get("kgs") or "",
-                        "s20": h.get("s20") or "",
+                        "S20": h.get("s20") or h.get("S20") or h.get("son20") or h.get("Son 20") or "",
                         "EİD": eid_degree,
                         "_eid_info": "\n".join(x for x in eid_info_parts if x),
                         "Gny": h.get("odds") or "",
@@ -652,7 +653,7 @@ elif st.session_state.page == "Yarış Programı":
                     })
 
                 headers = ["No", "At İsmi", "Yaş", "Orijin (Baba-Anne)", "Kilo", "Jokey",
-                           "Sahip / Antrenör", "St", "HP", "Son 6 Y.", "KGS", "s20", "EİD", "Gny", "AGF"]
+                           "Sahip / Antrenör", "St", "HP", "Son 6 Y.", "KGS", "S20", "EİD", "Gny", "AGF"]
                 widths = [4, 17, 7, 15, 5, 9, 12, 4, 4, 10, 4, 4, 7, 6, 6]
                 total_width = sum(widths)
                 colgroup = "".join(
@@ -687,12 +688,12 @@ elif st.session_state.page == "Yarış Programı":
                             if km:
                                 base = _html.escape(km.group(1) + "KG")
                                 extra_value = _re.sub(r"\s+", "", km.group(2) or "")
-                                extra = f' <span style="color:#d40000!important;font-size:9px!important;font-weight:900!important;white-space:nowrap">{_html.escape(extra_value)}</span>' if extra_value else ""
+                                extra = f' <span class="rp-extra-weight" style="color:#d40000!important;font-size:9px!important;font-weight:900!important">{_html.escape(extra_value)}</span>' if extra_value else ""
                                 safe = base + extra
                         elif key == "St":
                             sm = _re.search(r"(\d+)\s*(DS|TS)\b", value, flags=_re.I)
                             if sm:
-                                safe = f'{_html.escape(sm.group(1))} <span style="color:#d40000!important;font-size:9px!important;font-weight:900!important">{_html.escape(sm.group(2).upper())}</span>'
+                                safe = f'{_html.escape(sm.group(1))} <span class="rp-st-marker" style="color:#d40000!important;font-size:9px!important;font-weight:900!important">{_html.escape(sm.group(2).upper())}</span>'
                         elif key == "Jokey":
                             safe = f'<span class="rp-jockey">{safe}</span>'
                         elif key == "Sahip / Antrenör":
