@@ -784,12 +784,15 @@ elif st.session_state.page == "Yarış Programı":
                             gear = _html.escape(str(row.get("_equipment", "")))
                             nonrunner_tag = ' <span style="color:#d40000!important;font-size:9px!important;font-weight:900!important">KOŞMAZ</span>' if row.get("_nonrunner") else ""
                             ekuri_group = int(row.get("_ekuri_group") or 0)
-                            ekuri_color = "#e53935" if ekuri_group == 1 else ("#1565c0" if ekuri_group == 2 else "#e53935")
+                            ekuri_color = "#ff3030" if ekuri_group == 1 else ("#1687ff" if ekuri_group == 2 else "#ff3030")
                             ekuri_tag = (
                                 f' <span title="Eküri grubu {ekuri_group or 1}" '
-                                f'style="display:inline-block;color:{ekuri_color}!important;'
-                                f'font-size:19px!important;line-height:1!important;font-weight:900!important;'
-                                f'vertical-align:middle!important;text-shadow:0 0 1px #222">♞</span>'
+                                f'style="display:inline-block!important;color:{ekuri_color}!important;'
+                                f'-webkit-text-fill-color:{ekuri_color}!important;'
+                                f'font-family:Arial,\'Segoe UI Symbol\',serif!important;'
+                                f'font-size:22px!important;line-height:1!important;font-weight:900!important;'
+                                f'vertical-align:middle!important;text-shadow:0 0 2px #ffffff,0 0 3px #111">'
+                                f'&#x265E;&#xFE0E;</span>'
                             ) if row.get("_ekuri") else ""
                             safe = (
                                 f'<span class="rp-horse-name">{safe}</span> '
