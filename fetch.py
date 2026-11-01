@@ -223,7 +223,19 @@ def _tjk_parse_horse_tables(html):
             clean_horse_name = re.sub(r"\s*\(\s*ko[sş]maz\s*\)", "", raw_horse_name, flags=re.I).strip()
             name_for_ekuri = re.sub(r"\s*\(\d{1,2}\)", "", clean_horse_name)
             name_for_ekuri = re.sub(r"\s*image\s*$", "", name_for_ekuri, flags=re.I).strip()
-            is_ekuri = _tjk_norm(name_for_ekuri) in ekuri_names
+            # TJK at hücresinde at adından sonra DB/SK/KG gibi ekipman
+            # kısaltmaları gelebilir; eküri listesinde bu ekler bulunmaz.
+            name_for_ekuri = re.sub(
+                r"\\s+(?:DB|SK|KG|K|G|SG|GKR|D|YP|KGK|SKG)(?:\\s+(?:DB|SK|KG|K|G|SG|GKR|D|YP|KGK|SKG))*\\s*$",
+                "", name_for_ekuri, flags=re.I
+            ).strip()
+            normalized_horse_name = _tjk_norm(name_for_ekuri)
+            is_ekuri = any(
+                normalized_horse_name == ekuri_name
+                or normalized_horse_name.startswith(ekuri_name + " ")
+                or ekuri_name.startswith(normalized_horse_name + " ")
+                for ekuri_name in ekuri_names if ekuri_name
+            )
             horses.append({
                 "_at_id": at_id,
                 "Koşmaz": status_is_nonrunner,
