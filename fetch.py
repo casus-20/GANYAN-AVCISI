@@ -134,45 +134,21 @@ def _tjk_parse_horse_tables(html):
     for i,m in enumerate(matches):
         no=int(m.group(1)); stop=matches[i+1].start() if i+1<len(matches) else min(len(page_text),m.end()+5000)
         chunk=page_text[m.start():stop]; lines=[x.strip() for x in chunk.splitlines() if x.strip()]
-        tm=re.search(r"\b(?:[01]?\d|2[0-3]):[0-5]\d\b",chunk)
+        # Saat bazı TJK sayfalarında koşu başlığından hemen önceki satırda bulunur.
+        prefix_start = matches[i-1].end() if i > 0 else max(0, m.start()-240)
+        prefix = page_text[prefix_start:m.start()]
+        time_scope = prefix + "\\n" + chunk
+        time_matches = list(re.finditer(r"(?<!\\d)(?:[01]?\\d|2[0-3]):[0-5]\\d(?!\\d)", time_scope))
+        tm = time_matches[-1] if time_matches else None
         dist=re.search(r"\b(\d{3,4})\s*(?:m|metre)\b",chunk,re.I)
         surf=re.search(r"\b(Çim|Kum|Sentetik)\b",chunk,re.I)
         prize=re.search(r"(?:₺\s*)?(\d{1,3}(?:\.\d{3})+(?:,\d{2})?)\s*(?:₺|TL)",chunk,re.I)
         name=next((x for x in lines[1:10] if len(x)<=110 and re.search(r"(?i)(koşusu|kupası|ödülü)",x)),"")
-        cls_match=re.search(r"(?i)(maiden|şartlı\s*\d*|handikap\s*\d*|kv-?\s*\d+|satış\s*\d*|grup\s*\d*)",chunk)
+        cls_match=re.search(r"(?i)(maiden|şartlı\s*\d*|handikap\s*\d*|kv-\s*\d+|satış\s*\d*)",chunk)
         cls=cls_match.group(0).strip() if cls_match else ""
         age_match=re.search(r"(?i)(\d+\s*(?:ve\s*yukarı\s*)?yaşlı\s+(?:ingilizler|araplar)|\d+\s*yaşlı\s+(?:ingiliz|arap))",chunk)
         age=age_match.group(0).strip() if age_match else ""
-        # TJK koşu başlığı ve ikramiye tablosu bazen HTML'de ayrı hücrelere
-        # bölünür. get_text("\\n") her hücreyi ayrı satıra ayırdığı için
-        # yalnızca "İkramiye:" etiketini almak yerine takip eden tutarları da birleştir.
-        detail_line = ""
-        for j in range(len(lines)):
-            window = " ".join(lines[j:j+5])
-            if (re.search(r"(?i)(maiden|şartlı|handikap|kv-?\s*\d+|satış|grup)\b", window)
-                    and re.search(r"(?i)(kum|çim|sentetik)", window)
-                    and re.search(r"(?i)\bkg\b", window)):
-                detail_line = re.sub(r"\s+", " ", window).strip(" |")
-                break
-
-        prize_start = next((j for j, ln in enumerate(lines)
-                            if re.search(r"(?i)ikramiye", ln)), None)
-        prize_block = []
-        if prize_start is not None:
-            for ln in lines[prize_start:prize_start+24]:
-                # At tablosunun başlıklarına gelince ödül bölümünü kes.
-                if re.search(r"(?i)^(?:no|at\s*adı|at\s*ismi|jokey|sahip|antrenör)\s*$", ln):
-                    break
-                if re.search(r"(?i)(ikramiye|yetiştirici\s*primi|at\s*sahibi\s*primi|\d[\d.,]*\s*₺|\d[\d.,]*\s*TL)", ln):
-                    prize_block.append(ln)
-                elif prize_block and len(prize_block) < 18:
-                    # Tutarlar etiketten sonraki ayrı hücre/satırda olabilir.
-                    prize_block.append(ln)
-        prize_text = re.sub(r"\s+", " ", " ".join(prize_block)).strip(" |")
-        race_details = " | ".join(x for x in [detail_line, prize_text] if x)
-        meta[no]={"no":no,"time":tm.group(0) if tm else "","name":name,"class":cls,"age":age,
-                  "distance":f"{dist.group(1)} m" if dist else "","surface":surf.group(1).title() if surf else "",
-                  "prize":f"{prize.group(1)} ₺" if prize else "","details":race_details}
+        meta[no]={"no":no,"time":tm.group(0) if tm else "","name":name,"class":cls,"age":age,"distance":f"{dist.group(1)} m" if dist else "","surface":surf.group(1).title() if surf else "","prize":f"{prize.group(1)} ₺" if prize else ""}
 
     # TJK programında eküri bilgisi çoğunlukla tablonun altında
     # [(1)AT ADI,(5)DİĞER AT] eküridir. biçiminde yayımlanır.
@@ -233,7 +209,7 @@ def _tjk_parse_horse_tables(html):
                     for attr in ("title", "data-original-title", "data-content", "data-tooltip", "aria-label"):
                         value = node.get(attr) if hasattr(node, "get") else None
                         if value:
-                            cleaned = re.sub(r"\s+", " ", str(value)).strip()
+                            cleaned = re.sub(r"\\s+", " ", str(value)).strip()
                             if cleaned and cleaned not in info_parts:
                                 info_parts.append(cleaned)
                 eid_info = " | ".join(info_parts)
@@ -443,7 +419,7 @@ def get_tjk_program(date_value, city):
             "no": no, "time": race_meta.get("time") or "", "name": race_meta.get("name") or f"{no}. Koşu",
             "class": race_meta.get("class") or "", "age": race_meta.get("age") or "",
             "distance": race_meta.get("distance") or "", "surface": race_meta.get("surface") or "",
-            "prize": race_meta.get("prize") or "", "details": race_meta.get("details") or "", "horses": horses,
+            "prize": race_meta.get("prize") or "", "horses": horses,
         })
     if not races:
         raise RuntimeError(f"TJK {actual_city} programı bulundu ancak koşu/at tablosu ayrıştırılamadı.")
