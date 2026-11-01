@@ -583,16 +583,31 @@ def render():
         # eşleşiyor. Elazığ <-> Şanlıurfa ters eşlemesi KULLANILMAMALI.
         # Özellikle 21/09/2026 gibi dinamik programlarda yanlış hipodrom
         # gösterilmesini önlemek için seçilen şehir aynen gönderilir.
-        data = get_program(
-            selected_date,
-            city,
-        )
+        data = get_program(selected_date, city)
+        if not isinstance(data, dict):
+            raise RuntimeError("TJK program yanıtı geçerli bir veri nesnesi değil.")
 
-        if isinstance(data, dict):
-            data = dict(data)
-            # Ekranda her zaman kullanıcının seçtiği hipodrom adı gösterilir.
-            data["city"] = city
+        data = dict(data)
+        expected_date = selected_date.isoformat()
+        returned_date = str(data.get("date") or "").strip()
+        if returned_date != expected_date:
+            raise RuntimeError(
+                f"TJK tarih uyuşmazlığı: istenen {expected_date}, gelen {returned_date or 'boş'}. "
+                "Yanlış tarih programı gösterilmedi."
+            )
 
+        def _city_match_key(value):
+            value = str(value or "").strip().lower()
+            return (value.replace("ı", "i").replace("İ", "i")
+                    .replace("ş", "s").replace("ğ", "g").replace("ü", "u")
+                    .replace("ö", "o").replace("ç", "c"))
+
+        returned_city = str(data.get("city") or "").strip()
+        if _city_match_key(returned_city) != _city_match_key(city):
+            raise RuntimeError(
+                f"TJK hipodrom uyuşmazlığı: istenen {city}, gelen {returned_city or 'boş'}. "
+                "Başka hipodromun verisi gösterilmedi."
+            )
         return data
 
 
@@ -1722,7 +1737,7 @@ def render():
             if not isinstance(row, dict):
                 continue
             row_time = display_value(_rating_row_value(row, ["time", "derece", "Derece", "finishTime", "finish_time", "resultTime"]), "")
-            if row_time and row_time == best:
+            if row_time and re.sub(r"[^0-9]", "", row_time) == re.sub(r"[^0-9]", "", best):
                 city = city or display_value(_first_value(row, ["city", "şehir", "Sehir"]), "")
                 date = date or display_value(_first_value(row, ["date", "tarih", "Tarih"]), "")
                 distance = distance or display_value(_first_value(row, ["distance", "msf", "mesafe"]), "")
@@ -4933,7 +4948,9 @@ def render():
                     message = 'En İyi Derece: ' + degree;
                 }
                 if (distance) message += '\nMesafe: ' + distance;
-                if (info) message += '\n' + info;
+                if (info) message += '\nPist: ' + info;
+                if (!message && degree) message = 'En İyi Derece: ' + degree;
+                span.title = message || (degree ? 'En İyi Derece: ' + degree : '');
 
                 span.addEventListener('mouseenter', function() {
                     if (!message) return;
@@ -5042,15 +5059,18 @@ def render():
                 root.style.gap = '2px';
                 root.style.whiteSpace = 'nowrap';
                 const text = String(params.value ?? '').replace(/\s+/g, '');
-                const colors = {
-                    '1': '#168a3a',  // 1. sıra: yeşil
-                    '2': '#2878c7',  // 2. sıra: mavi
-                    '3': '#e58a16',  // 3. sıra: turuncu
-                    '4': '#e0b400',  // 4. sıra: sarı
-                    '5': '#777777',  // 5. sıra: gri
-                    '6': '#873fc4'   // 6. sıra: mor
+                const surfaces = String((params.data && params.data._form_surfaces) || '').split('|');
+                const surfaceColors = {
+                    cim: '#168a3a',       // Çim: yeşil
+                    kum: '#c5a044',       // Kum: sarımtırak kum rengi
+                    sentetik: '#873fc4'   // Sentetik: mor
                 };
-                Array.from(text).slice(0, 6).forEach(ch => {
+                Array.from(text).slice(0, 6).forEach((ch, index) => {
+                    const surface = String(surfaces[index] || '').toLowerCase();
+                    let chipColor = '#858585';
+                    if (surface.includes('cim')) chipColor = surfaceColors.cim;
+                    else if (surface.includes('kum')) chipColor = surfaceColors.kum;
+                    else if (surface.includes('sentetik')) chipColor = surfaceColors.sentetik;
                     const chip = document.createElement('span');
                     chip.textContent = ch;
                     chip.style.display = 'inline-flex';
@@ -5061,7 +5081,7 @@ def render():
                     chip.style.height = '18px';
                     chip.style.boxSizing = 'border-box';
                     chip.style.borderRadius = '5px';
-                    chip.style.backgroundColor = colors[ch] || '#777777';
+                    chip.style.backgroundColor = chipColor;
                     chip.style.color = '#ffffff';
                     chip.style.fontSize = '10px';
                     chip.style.fontWeight = '900';
@@ -5156,7 +5176,7 @@ def render():
                     if not isinstance(row, dict):
                         continue
                     row_time = display_value(_first_value(row, ["time", "derece", "Derece"]), "")
-                    if row_time == best:
+                    if row_time and re.sub(r"[^0-9]", "", row_time) == re.sub(r"[^0-9]", "", best):
                         city = city or display_value(_first_value(row, ["city", "şehir", "Sehir"]), "")
                         date = date or display_value(_first_value(row, ["date", "tarih", "Tarih"]), "")
                         distance = distance or display_value(_first_value(row, ["distance", "msf", "mesafe"]), "")
