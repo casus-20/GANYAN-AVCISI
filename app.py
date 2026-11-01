@@ -3,8 +3,10 @@ import base64
 import re
 import streamlit as st
 import pandas as pd
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from fetch import get_dashboard_data, get_tjk_race_program, get_tjk_horse_history
 from bizim_skor_model import calculate_bizim_ranking
+from reyting_model import calculate_rating_cached
 
 BASE = Path(__file__).parent
 
@@ -478,48 +480,44 @@ elif st.session_state.page == "Yarış Programı":
 elif st.session_state.page == "Yarış Analizi":
     hero(True)
     st.markdown("### 🧠 YARIŞ ANALİZ MERKEZİ")
+    st.caption("TJK resmi programı ve at geçmişleri doğrudan TJK kaynaklarından alınır. Worker bağlantısı kullanılmaz.")
     a1, a2 = st.columns([1.1, 1.2], gap="small")
     with a1:
         with st.container(border=True):
-            analysis_date = st.date_input(
-                "Yarış Tarihi", value=pd.Timestamp.today().date(),
-                format="DD.MM.YYYY", key="analysis_tjk_date"
-            )
-
+            analysis_date = st.date_input("Yarış Tarihi", value=pd.Timestamp.today().date(), format="DD.MM.YYYY", key="analysis_tjk_date")
     @st.cache_data(ttl=300, show_spinner=False)
-    def _analysis_program_direct(date_text):
+    def _analysis_program(date_text):
         return get_tjk_race_program(date_text)
-
     try:
-        with st.spinner("TJK resmi yarış programı doğrudan alınıyor..."):
-            pdata = _analysis_program_direct(analysis_date.strftime("%d/%m/%Y"))
+        with st.spinner("TJK resmi yarış programı alınıyor..."):
+            pdata = _analysis_program(analysis_date.strftime("%d/%m/%Y"))
     except Exception as exc:
         st.error("TJK yarış programı alınamadı.")
-        st.caption(f"Bağlantı ayrıntısı: {type(exc).__name__}: {exc}")
+        st.caption(f"{type(exc).__name__}: {exc}")
         st.stop()
-
     cities = pdata.get("tracks", [])
     if not cities:
-        st.warning("Seçilen tarihte TJK programında hipodrom bulunamadı.")
+        st.warning("Seçilen tarihte TJK programı bulunamadı.")
         st.stop()
     with a2:
         with st.container(border=True):
             city = st.selectbox("Hipodrom", cities, key="analysis_tjk_city")
-
     races = pdata.get("races_by_track", {}).get(city, [])
-    race_labels = {
-        f'{r.get("no")}. Koşu  ·  {r.get("time") or "Saat yok"}  ·  {r.get("distance", "")} {r.get("surface", "")}': r
-        for r in races
-    }
+    race_labels = {f'{r.get("no")}. Koşu  ·  {r.get("time") or "Saat yok"}  ·  {r.get("distance", "")} {r.get("surface", "")}': r for r in races}
     if not race_labels:
         st.info("Bu hipodrom için koşu bulunamadı.")
         st.stop()
     selected_label = st.selectbox("Analiz edilecek koşu", list(race_labels), key="analysis_tjk_race")
-    selected_race = race_labels[selected_label]
+    selected_race = dict(race_labels[selected_label])
     race_no = selected_race.get("no")
     detail = pdata.get("details", {}).get(f"{city}|{race_no}", {})
     entries = detail.get("horses", [])
-
+    race_context = {
+        "date": analysis_date.isoformat(), "surface": selected_race.get("surface", ""),
+        "distance": selected_race.get("distance", ""),
+        "condition": selected_race.get("class", ""), "raceName": selected_race.get("name", ""),
+        "track": city, "no": race_no,
+    }
     st.markdown("#### KOŞU KÜNYESİ")
     with st.container(border=True):
         m1,m2,m3,m4,m5=st.columns(5)
@@ -528,89 +526,158 @@ elif st.session_state.page == "Yarış Analizi":
         m3.metric("MESAFE", selected_race.get("distance") or "—")
         m4.metric("PİST", selected_race.get("surface") or "—")
         m5.metric("AT SAYISI", len(entries))
-    st.markdown("#### KATILAN ATLAR")
+        st.caption(f"{city} · {analysis_date:%d.%m.%Y} · {selected_race.get('name') or selected_race.get('class') or 'TJK Yarışı'} · {selected_race.get('age','')}")
+    st.markdown("#### TJK RESMİ BÜLTENİ – KATILAN ATLAR")
     table(pd.DataFrame([{k:v for k,v in h.items() if not k.startswith("_")} for h in entries]), 420)
 
-    analysis_key = f"{analysis_date.isoformat()}|{city}|{race_no}"
-    if st.button("🔎 TJK GEÇMİŞ YARIŞLARINI ÇEK VE ANALİZ ET", type="primary", use_container_width=True,
-                 key=f"run_direct_tjk_analysis_{analysis_date}_{city}_{race_no}"):
-        analyzed=[]
-        history_errors=[]
-        progress=st.progress(0, text="TJK at geçmişleri alınıyor...")
-        for i,h in enumerate(entries):
-            horse=dict(h)
-            at_id=horse.get("_at_id", "")
-            try:
-                horse["_history"] = get_tjk_horse_history(at_id) if at_id else []
-                if not at_id:
-                    history_errors.append(f'{horse.get("At Adı", "At")} : TJK AtId bağlantısı bulunamadı')
-                elif not horse["_history"]:
-                    history_errors.append(f'{horse.get("At Adı", "At")} : TJK geçmiş yarış kaydı boş döndü')
-            except Exception as exc:
-                horse["_history"]=[]
-                history_errors.append(f'{horse.get("At Adı", "At")} : {type(exc).__name__}: {exc}')
-            # Bu veri istemcisinde doğrulanmış doğrudan TJK galop uç noktası yoktur.
-            # Boş liste korunur; sahte galop veya Worker yedeği kullanılmaz.
-            horse["_workouts"]=[]
-            analyzed.append(horse)
-            progress.progress((i+1)/max(1,len(entries)), text=f'{i+1}/{len(entries)} at incelendi')
-        progress.empty()
-        race_context={
-            "date":analysis_date.isoformat(),
-            "surface":selected_race.get("surface", ""),
-            "distance":selected_race.get("distance", ""),
-            "condition":selected_race.get("class", ""),
-        }
-        rankings=calculate_bizim_ranking(analyzed, race_context)
-        rank_by_index={x["horse_index"]:x for x in rankings}
-        summary=[]
-        for i,h in enumerate(analyzed):
-            r=rank_by_index.get(i,{})
-            comp=r.get("components", {})
-            summary.append({
-                "Sıra":r.get("rank", "—"),
-                "At Adı":h.get("At Adı", ""),
-                "Jokey":h.get("Jokey", ""),
-                "HP":h.get("HP", ""),
-                "Geçmiş Yarış":len(h.get("_history", [])),
-                "Galop":len(h.get("_workouts", [])),
-                "Koşu Şartı":comp.get("01_kosu_sarti_uyumu", "—"),
-                "Pist/Mesafe":comp.get("02_pist_mesafe", "—"),
-                "Pist Performansı":comp.get("03_pist_performansi", "—"),
-                "Güncel Form":comp.get("06_guncel_form", "—"),
-                "BİZİM SKOR":r.get("score", "—"),
-                "Model Sırası":r.get("rank", "—"),
-            })
-        st.session_state["_direct_tjk_analysis_result"]={
-            "key":analysis_key,"horses":analyzed,"summary":summary,
-            "rankings":rankings,"errors":history_errors,"race":race_context,
-        }
+    def _analysis_horse_normalize(raw):
+        h=dict(raw)
+        h.update({
+            "no": h.get("Sıra", ""), "number": h.get("Sıra", ""),
+            "name": h.get("At Adı", ""), "at_ismi": h.get("At Adı", ""),
+            "age": h.get("Yaş / Cins", ""), "origin": h.get("Orijin (Baba - Anne)", ""),
+            "weight": h.get("Sıklet", ""), "siklet": h.get("Sıklet", ""),
+            "jockey": h.get("Jokey", ""), "jokey": h.get("Jokey", ""),
+            "owner": h.get("Sahip", ""), "trainer": h.get("Antrenör", ""),
+            "st": h.get("St.", ""), "hp": h.get("HP", ""),
+            "form": h.get("Son 6 Y.", ""), "kgs": h.get("KGS", ""),
+            "s20": h.get("s20", ""), "bestTime": h.get("EİD", ""),
+            "odds": h.get("Muhtemel Ganyan", ""), "agf": h.get("AGF", ""),
+        })
+        return h
 
-    result=st.session_state.get("_direct_tjk_analysis_result")
-    if result and result.get("key")==analysis_key:
+    def _history_date_before(row, target):
+        from datetime import datetime, date
+        value=next((row.get(k) for k in ("Tarih","tarih","date","raceDate","race_date") if row.get(k)),None) if isinstance(row,dict) else None
+        if isinstance(value,datetime): value=value.date()
+        if isinstance(value,date): dt=value
+        else:
+            dt=None
+            for fmt in ("%d.%m.%Y","%d/%m/%Y","%Y-%m-%d","%d-%m-%Y"):
+                try: dt=datetime.strptime(str(value or "")[:10],fmt).date(); break
+                except Exception: pass
+        return dt is not None and dt < target
+
+    run_key=f"{analysis_date.isoformat()}|{city}|{race_no}"
+    if st.button("🔎 TÜM AT GEÇMİŞLERİNİ ÇEK VE TAM ANALİZİ ÇALIŞTIR", type="primary", use_container_width=True, key=f"run_full_tjk_analysis_{run_key}"):
+        normalized=[_analysis_horse_normalize(h) for h in entries]
+        results=[None]*len(normalized)
+        errors=[]
+        progress=st.progress(0, text="TJK at geçmişleri alınıyor...")
+        def _fetch_one(item):
+            i,h=item
+            at_id=h.get("_at_id") or h.get("atId") or h.get("at_id") or ""
+            try:
+                hist=get_tjk_horse_history(str(at_id)) if at_id else []
+                return i, hist, "" if hist else ("AtId bulunamadı" if not at_id else "TJK geçmiş tablosu boş döndü")
+            except Exception as exc:
+                return i, [], f"{type(exc).__name__}: {exc}"
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            futures=[pool.submit(_fetch_one,item) for item in enumerate(normalized)]
+            done=0
+            for fut in as_completed(futures):
+                i,hist,err=fut.result(); normalized[i]["_history"]=hist
+                normalized[i]["_history_source"]="TJK doğrudan" if hist else "TJK doğrudan – veri yok"
+                normalized[i]["_workouts"]=[]
+                normalized[i]["_enrichment_error"]=err
+                if err: errors.append(f'{normalized[i].get("name")}: {err}')
+                done+=1; progress.progress(done/max(1,len(normalized)), text=f"{done}/{len(normalized)} at işlendi")
+        progress.empty()
+        # İki skor motoru da hedef tarihten önceki geçmişle çalışır.
+        for h in normalized:
+            h["_history"]=[r for r in h.get("_history",[]) if _history_date_before(r, analysis_date)]
+        race_context["date"]=analysis_date.isoformat()
+        bizim=calculate_bizim_ranking(normalized, race_context)
+        rating=calculate_rating_cached(normalized, race_context)
+        st.session_state["_full_tjk_analysis_result"]={"key":run_key,"horses":normalized,"bizim":bizim,"rating":rating,"errors":errors,"race":race_context}
+
+    def _history_date_before(row, target):
+        from datetime import datetime, date
+        value=next((row.get(k) for k in ("Tarih","tarih","date","raceDate","race_date") if row.get(k)),None) if isinstance(row,dict) else None
+        if isinstance(value,datetime): value=value.date()
+        if isinstance(value,date): dt=value
+        else:
+            dt=None
+            for fmt in ("%d.%m.%Y","%d/%m/%Y","%Y-%m-%d","%d-%m-%Y"):
+                try: dt=datetime.strptime(str(value or "")[:10],fmt).date(); break
+                except Exception: pass
+        return dt is not None and dt < target
+
+    result=st.session_state.get("_full_tjk_analysis_result")
+    if result and result.get("key")==run_key:
+        horses=result["horses"]
+        bizim_by={x["horse_index"]:x for x in result.get("bizim",[])}
+        rating_by={x["horse_index"]:x for x in result.get("rating",[])}
+        def _v(x): return x if x not in (None, "") else "—"
+        def _money_value(value):
+            import re
+            raw=str(value or "").replace("₺", "").replace("TL", "").replace("\xa0", " ").strip()
+            raw=re.sub(r"[^0-9,.]", "", raw)
+            if not raw: return 0.0
+            if "," in raw: raw=raw.replace(".", "").replace(",", ".")
+            try: return float(raw)
+            except Exception: return 0.0
+        def _money_text(value):
+            return (f"{value:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")) if value else "—"
+        rows=[]
+        for i,h in enumerate(horses):
+            b=bizim_by.get(i,{}) ; rr=rating_by.get(i,{})
+            owner_trainer=" / ".join(x for x in (h.get("owner"),h.get("trainer")) if x)
+            hist=h.get("_history",[])
+            last=hist[0] if hist else {}
+            target_year=analysis_date.year
+            total_earnings=sum(_money_value(rec.get("İkramiye") or rec.get("Ikramiye") or rec.get("Kazanç")) for rec in hist if isinstance(rec,dict))
+            year_earnings=sum(_money_value(rec.get("İkramiye") or rec.get("Ikramiye") or rec.get("Kazanç")) for rec in hist if isinstance(rec,dict) and str(rec.get("Tarih", "")).endswith(str(target_year)))
+            last_display=" / ".join(str(last.get(k)) for k in ("Tarih","Mesafe","Pist","Sıra","Derece") if last.get(k)) or "—"
+            rows.append({
+                "No":_v(h.get("no")),"At İsmi":_v(h.get("name")),"Yaş":_v(h.get("age")),
+                "Orijin (Baba-Anne)":_v(h.get("origin")),"Kilo":_v(h.get("weight")),"Jokey":_v(h.get("jockey")),
+                "Sahip / Antrenör":owner_trainer or "—","St":_v(h.get("st")),"HP":_v(h.get("hp")),
+                "Son 6 Y.":_v(h.get("form")),"KGS":_v(h.get("kgs")),"s20":_v(h.get("s20")),
+                "EİD":_v(h.get("bestTime")),"Gny":_v(h.get("odds")),"AGF":_v(h.get("agf")),
+                "BİZİM SKOR":b.get("score","—"),"REYTİNG":rr.get("score","—"),
+                "SON KOŞU":last_display,"GEÇMİŞ YARIŞ":len(hist),
+                "BU YIL KAZANÇ":_money_text(year_earnings),"TOPLAM KAZANÇ":_money_text(total_earnings),
+            })
+        st.markdown("#### TAM YARIŞ ANALİZ TABLOSU")
+        table(pd.DataFrame(rows), 650)
         st.markdown("#### BİZİM SKOR – PERFORMANS SIRALAMASI")
-        table(pd.DataFrame(result["summary"]), 520)
-        horse_names=[h.get("At Adı", f'At {i+1}') for i,h in enumerate(result["horses"])]
-        selected_horse_name=st.selectbox("At detayını görüntüle", horse_names, key="analysis_detail_horse")
-        horse=next((h for h in result["horses"] if h.get("At Adı")==selected_horse_name), {})
+        b_rows=[]
+        for x in result.get("bizim",[]):
+            h=horses[x["horse_index"]]; row={"Sıra":x.get("rank"),"No":h.get("no"),"At":h.get("name"),"BİZİM SKOR":x.get("score")}
+            row.update(x.get("components",{})); b_rows.append(row)
+        table(pd.DataFrame(b_rows), 360)
+        st.markdown("#### REYTİNG – BAĞIMSIZ PERFORMANS SIRALAMASI")
+        r_rows=[]
+        for x in result.get("rating",[]):
+            h=horses[x["horse_index"]]; row={"Sıra":x.get("rank"),"No":h.get("no"),"At":h.get("name"),"REYTİNG":x.get("score")}
+            row.update(x.get("components",{})); row["Kullanılan Bileşen"]=x.get("available_components"); row["Kullanılan Ağırlık %"]=x.get("available_weight_pct"); r_rows.append(row)
+        table(pd.DataFrame(r_rows), 360)
+        detail_names=[h.get("name") or f"At {i+1}" for i,h in enumerate(horses)]
+        selected_horse_name=st.selectbox("At detayını görüntüle", detail_names, key="analysis_detail_horse")
+        horse=next((h for h in horses if h.get("name")==selected_horse_name),{})
         st.markdown(f"#### {selected_horse_name.upper()} – GEÇMİŞ YARIŞLAR")
-        table(pd.DataFrame(horse.get("_history", [])), 430)
-        with st.expander("Atların geçmiş yarış kayıtlarının tamamı"):
-            hist_rows=[]
-            for h in result["horses"]:
-                for rr in h.get("_history", []):
-                    row={"At":h.get("At Adı", "")}
-                    row.update(rr if isinstance(rr,dict) else {"Kayıt":str(rr)})
-                    hist_rows.append(row)
-            table(pd.DataFrame(hist_rows), 520)
-        with st.expander("Atların galop kayıtları"):
-            st.info("Bu sürümde Worker bağlantısı tamamen kaldırıldı. TJK'nın doğrudan galop sorgusunun URL ve yanıt şeması henüz doğrulanamadığı için bu alana galop verisi uydurulmamıştır.")
+        table(pd.DataFrame(horse.get("_history",[])), 460)
+        with st.expander("REYTİNG BİLEŞEN TEŞHİSİ", expanded=False):
+            diag=[]
+            for i,h in enumerate(horses):
+                rr=rating_by.get(i,{}) ; comp=rr.get("components",{})
+                diag.append({"At":h.get("name"),"REYTİNG":rr.get("score","HESAPLANMADI"),"Ortak Rakip + Kilo":comp.get("Ortak Rakip + Kilo"),"Kilo Uyumu":comp.get("Kilo Uyumu"),"Güncel Form":comp.get("Güncel Form"),"Pist / Mesafe":comp.get("Pist / Mesafe"),"Sınıf Uyumu":comp.get("Sınıf Uyumu"),"Eksik Bileşen":", ".join(k for k in ("Ortak Rakip + Kilo","Kilo Uyumu","Güncel Form","Pist / Mesafe","Sınıf Uyumu") if comp.get(k) is None) or "Yok"})
+            table(pd.DataFrame(diag),360)
+        with st.expander("TÜM ATLARIN GEÇMİŞ YARIŞ KAYITLARI", expanded=False):
+            all_history=[]
+            for h in horses:
+                for rec in h.get("_history",[]):
+                    row={"At":h.get("name")}; row.update(rec if isinstance(rec,dict) else {"Kayıt":str(rec)}); all_history.append(row)
+            table(pd.DataFrame(all_history),520)
+        with st.expander("GALOP / İŞ KAYITLARI", expanded=False):
+            st.warning("Galop verisi için doğrudan TJK uç noktası bu kaynak dosyalarda doğrulanmadı. Worker kullanılmadı ve galop verisi uydurulmadı.")
         if result.get("errors"):
-            with st.expander("Veri erişim notları"):
-                for err in result["errors"]:
-                    st.write("• "+err)
+            with st.expander("TJK VERİ ERİŞİM HATALARI", expanded=False):
+                for err in result["errors"]: st.write("• "+err)
+        st.caption("REYTİNG motoru: Ortak Rakip + Kilo %35 · Kilo Uyumu %5 · Güncel Form %25 · Pist/Mesafe %15 · Sınıf Uyumu %20. Her iki motor da hedef yarış tarihinden önceki kayıtları kullanır.")
     else:
-        st.caption("Seçilen koşunun at geçmişleri yüklendiğinde BİZİM SKOR sıralaması ve detay tabloları burada gösterilir.")
+        st.info("Tüm atların geçmiş yarışlarını, BİZİM SKOR ve REYTİNG tablolarını oluşturmak için yukarıdaki analiz düğmesine basın.")
 
 else:
     hero()
