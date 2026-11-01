@@ -407,7 +407,7 @@ if st.session_state.page == "Ana Sayfa":
         table(pd.DataFrame(d["program"]), 210)
 
 elif st.session_state.page == "Yarış Programı":
-    from tjk_fetch import get_active_cities as _get_tjk_active_cities, get_program as _get_tjk_program
+    from fetch import get_tjk_active_cities as _get_tjk_active_cities, get_tjk_program as _get_tjk_program
 
     hero(True)
     f1, f2 = st.columns([1.1, 1.2], gap="small")
