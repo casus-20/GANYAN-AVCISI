@@ -483,15 +483,25 @@ elif st.session_state.page == "Yarış Programı":
         """Pist bilgisini TJK yanıtındaki farklı alanlardan güvenli biçimde bul."""
         if not isinstance(race_obj, dict):
             return ""
-        meta_obj = race_obj.get("meta") if isinstance(race_obj.get("meta"), dict) else {}
-        candidates = [
-            race_obj.get("surface"), race_obj.get("track"),
-            race_obj.get("pist"), race_obj.get("track_type"),
-            meta_obj.get("surface"), meta_obj.get("track"),
-            meta_obj.get("pist"), race_obj.get("details"),
-            race_obj.get("condition"), race_obj.get("name"),
-        ]
-        value = " ".join(str(v or "") for v in candidates).casefold()
+        # TJK farklı hipodromlarda pist bilgisini farklı alanlarda/nested meta içinde döndürebiliyor.
+        # Koşu düzeyindeki tüm metin alanlarını tara; at geçmişi/horses alanına girme.
+        candidates = []
+        def _collect_race_text(obj, depth=0):
+            if depth > 4:
+                return
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    if str(k).casefold() in {"horses", "atlar", "horse_list", "entries"}:
+                        continue
+                    if isinstance(v, (dict, list, tuple)):
+                        _collect_race_text(v, depth + 1)
+                    elif v is not None:
+                        candidates.append(str(v))
+            elif isinstance(obj, (list, tuple)):
+                for v in obj:
+                    _collect_race_text(v, depth + 1)
+        _collect_race_text(race_obj)
+        value = " ".join(candidates).casefold()
         # Önce sentetik kontrol edilir; bazı TJK metinlerinde 'kum' da birlikte geçebilir.
         if "sentetik" in value:
             return "sentetik"
@@ -535,19 +545,29 @@ elif st.session_state.page == "Yarış Programı":
                     race_surface = _program_surface(race_item)
                     button_color, button_text = _program_surface_colors(race_surface)
                     race_button_key = f"tjk_race_{selected_date:%Y%m%d}_{track}_{race_no}"
+                    race_button_wrap = f"race_btn_wrap_{selected_date:%Y%m%d}_{idx}"
                     st.markdown(
-                        f'<style>div.st-key-{race_button_key} button{{background:{button_color}!important;'
-                        f'color:{button_text}!important;border:1px solid {button_color}!important;'
-                        f'font-weight:800!important}}</style>', unsafe_allow_html=True
+                        f'<style>'
+                        f'div.st-key-{race_button_wrap} button, '
+                        f'div.st-key-{race_button_wrap} button[kind="secondary"]{{'
+                        f'background:{button_color}!important;'
+                        f'background-color:{button_color}!important;'
+                        f'color:{button_text}!important;'
+                        f'border:1px solid {button_color}!important;'
+                        f'font-weight:800!important;box-shadow:none!important;'
+                        f'}}'
+                        f'div.st-key-{race_button_wrap} button p{{color:{button_text}!important;}}'
+                        f'</style>', unsafe_allow_html=True
                     )
-                    if st.button(
-                        f'{race_no}. Koşu\n{race_item.get("time", "")}',
-                        key=race_button_key,
-                        use_container_width=True,
-                        type="secondary"
-                    ):
-                        st.session_state.race_no = race_no
-                        st.rerun()
+                    with st.container(key=race_button_wrap):
+                        if st.button(
+                            f'{race_no}. Koşu\\n{race_item.get("time", "")}',
+                            key=race_button_key,
+                            use_container_width=True,
+                            type="secondary"
+                        ):
+                            st.session_state.race_no = race_no
+                            st.rerun()
         else:
             st.info(f"{track} için seçilen tarihte koşu bilgisi bulunamadı.")
 
