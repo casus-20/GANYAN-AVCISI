@@ -1562,17 +1562,42 @@ def render():
         return ""
 
 
+    def _last_six_rows(horse: Dict[str, Any], target_date: Any = None) -> list[Dict[str, Any]]:
+        """Hedef tarihten önceki en yeni altı gerçek yarışı tarih sırasıyla verir."""
+        if target_date is not None:
+            rows = _rating_history_before_target(horse, target_date)
+        else:
+            rows = horse.get("_history", [])
+            rows = [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
+            rows = sorted(rows, key=lambda r: _rating_row_date(r) or date.min, reverse=True)
+        return rows[:6]
+
+
+    def _last_six_form_digits(horse: Dict[str, Any], target_date: Any = None, fallback: str = "-") -> str:
+        """Son 6 sonuç rakamlarını, pist renkleriyle aynı altı geçmiş kaydından üretir."""
+        rows = _last_six_rows(horse, target_date)
+        if not rows:
+            return fallback
+        digits = []
+        for row in rows:
+            value = _rating_row_value(row, [
+                "finishPosition", "finish_position", "place", "placing", "sira", "Sıra", "S", "rank", "position", "finish", "sonuc", "resultPosition", "finishingPosition", "result"
+            ])
+            text = str(value or "").strip()
+            if re.match(r"^\d{1,2}[.:]\d{2}[.:]\d{2}", text):
+                text = ""
+            match = re.match(r"^(\d{1,2})(?:\s*\.|\s*/\s*\d+|\s|$)", text)
+            if match:
+                digits.append(match.group(1))
+            else:
+                status = str(_rating_row_value(row, ["status", "durum", "resultStatus"]) or "").strip().lower()
+                digits.append("X" if any(x in status for x in ("çek", "cek", "start almad", "disqual")) else "-")
+        return "".join(digits) if digits else fallback
+
+
     def _last_six_surface_data(horse: Dict[str, Any], target_date: Any = None) -> str:
         """Ana tabloda Son 6 Y. rakamlarının pist türünü taşıyan gizli veri."""
-        history = horse.get("_history", [])
-        if not isinstance(history, list):
-            return ""
-
-        # Son 6 Y. ile renkler aynı yarış kayıtlarından gelmeli.
-        # Seçili yarış tarihi verilmişse aynı gün/gelecek kayıtları çıkarıyoruz;
-        # böylece sonuç sonrası eklenen güncel yarış renkleri bir pozisyon kaydırmıyor.
-        if target_date is not None:
-            history = _rating_history_before_target(horse, target_date)
+        history = _last_six_rows(horse, target_date)
 
         values = []
         for row in history[:6]:
@@ -1580,29 +1605,12 @@ def render():
                 values.append("")
                 continue
             surface = _normalize_surface_for_table(
-                row.get("surface")
-                or row.get("pist")
-                or row.get("Pist")
-                or row.get("Surface")
-                or row.get("trackSurface")
-                or row.get("track_surface")
-                or row.get("surfaceType")
-                or row.get("surface_type")
-                or row.get("track")
-                or row.get("trackType")
-                or row.get("track_type")
-                or row.get("zemin")
-                or row.get("Zemin")
-                or row.get("pistTuru")
-                or row.get("pist_turu")
-                or row.get("PistTuru")
-                or row.get("surfaceName")
-                or row.get("surface_name")
-                or row.get("pistAdi")
-                or row.get("pist_adi")
-                or row.get("zeminTuru")
-                or row.get("zemin_turu")
-                or ""
+                _rating_row_value(row, [
+                    "surface", "pist", "Pist", "Surface", "trackSurface", "track_surface",
+                    "surfaceType", "surface_type", "track", "trackType", "track_type",
+                    "zemin", "Zemin", "pistTuru", "pist_turu", "PistTuru",
+                    "surfaceName", "surface_name", "pistAdi", "pist_adi", "zeminTuru", "zemin_turu",
+                ])
             )
             values.append(surface)
 
@@ -1610,103 +1618,105 @@ def render():
 
 
     def _race_finish_label(horse: Dict[str, Any], race: Dict[str, Any], horse_index: int, target_date: Any = None, target_city_name: str = "") -> str:
-        """Analiz edilen yarışın TJK gerçek sonucunu bulur.
+        """Hedef yarış gününün gerçek bitiriş sırasını bulur; tahmin üretmez."""
+        result_keys = (
+            "finishPosition", "finish_position", "place", "placing", "sira",
+            "Sıra", "S", "rank", "position", "finish", "sonuc", "resultPosition", "finishingPosition", "result",
+        )
 
-        Bu gösterim BİZİM SKOR hesabına dahil değildir. Amaç yalnızca yarış
-        sonuçlandıktan sonra At İsmi'nin sonunda (1.), (2.) gibi sonucu göstermektir.
-        Bir at aynı gün normalde tek yarış koştuğu için, tarih + atın geçmişindeki
-        sonuç kaydı birincil eşleştirmedir; şehir/mesafe gibi alanlar yalnızca
-        destekleyici doğrulama olarak kullanılır.
-        """
         def _position(value: Any) -> int | None:
             if isinstance(value, dict):
-                for k in ("finish", "place", "sira", "S", "result", "sonuc", "position", "finishPosition", "finish_position", "rank"):
-                    if value.get(k) not in (None, "", "-"):
-                        return _position(value.get(k))
+                for key in result_keys:
+                    if value.get(key) not in (None, "", "-"):
+                        found = _position(value.get(key))
+                        if found is not None:
+                            return found
                 return None
-            if value is None:
+            if value is None or isinstance(value, bool):
                 return None
-            m = re.search(r"\d+", str(value).strip())
-            if not m:
+            text = str(value).strip()
+            if not text or text in ("-", "—"):
                 return None
-            try:
-                n = int(m.group(0))
-                return n if n > 0 else None
-            except Exception:
+            # Derece/süre biçimleri (1.28.92, 0:59.40 vb.) sıra değildir.
+            if re.match(r"^\d{1,2}[.:]\d{2}[.:]\d{2}", text):
                 return None
+            match = re.match(r"^(\d{1,2})(?:\s*\.|\s*/\s*\d+|\s|$)", text)
+            if not match:
+                return None
+            number = int(match.group(1))
+            return number if 1 <= number <= 40 else None
 
         def _parse_date(value: Any):
-            if value in (None, "", "-"):
-                return None
-            if isinstance(value, datetime):
-                return value.date()
-            if isinstance(value, date):
-                return value
-            text = str(value).strip()
-            for fmt in ("%Y-%m-%d", "%d.%m.%Y", "%d/%m/%Y", "%Y/%m/%d"):
-                try:
-                    return datetime.strptime(text[:10], fmt).date()
-                except Exception:
-                    pass
-            return None
+            return _rating_parse_date(value) if value not in (None, "", "-") else None
 
-        # 1) Program sonucunda doğrudan sonuç varsa kullan.
-        for key in ("finish", "place", "sira", "S", "result", "sonuc", "position", "finishPosition", "finish_position", "rank"):
-            if horse.get(key) not in (None, "", "-"):
-                pos = _position(horse.get(key))
+        target_dt = _parse_date(target_date or race.get("date") or race.get("tarih") or race.get("Tarih"))
+        horse_no = str(get_horse_number(horse, horse_index + 1)).strip()
+        horse_id = str(horse.get("atId") or horse.get("at_id") or horse.get("id") or "").strip()
+
+        # 1) Sonuç verisi doğrudan at kaydında mevcutsa kullan.
+        for key in result_keys:
+            value = horse.get(key)
+            if value not in (None, "", "-"):
+                pos = _position(value)
                 if pos is not None:
                     return f"({pos}.)"
 
-        # 2) Yarışın sonuç haritası varsa at numarasıyla eşleştir.
-        no = get_horse_number(horse, horse_index + 1)
-        for container in (race.get("results"), race.get("result"), race.get("resultMap"), race.get("result_map"), race.get("finish")):
+        # 2) Koşunun sonuç haritası at numarası/AtId ile eşleşiyorsa kullan.
+        for container_key in ("results", "result", "resultMap", "result_map", "finish", "finishOrder"):
+            container = race.get(container_key)
             if isinstance(container, dict):
-                for key in (no, str(no), horse.get("no"), horse.get("numara")):
-                    if key in container:
+                for key in (horse_no, str(horse.get("no") or ""), horse_id):
+                    if key and key in container:
                         pos = _position(container.get(key))
                         if pos is not None:
                             return f"({pos}.)"
+            elif isinstance(container, list):
+                for result_row in container:
+                    if not isinstance(result_row, dict):
+                        continue
+                    row_no = str(_rating_row_value(result_row, ["horseNo", "horse_no", "no", "numara", "formaNo"]) or "").strip()
+                    row_id = str(_rating_row_value(result_row, ["atId", "at_id", "horseId", "horse_id"]) or "").strip()
+                    if (row_no and row_no == horse_no) or (horse_id and row_id == horse_id):
+                        pos = _position(_rating_row_value(result_row, list(result_keys)))
+                        if pos is not None:
+                            return f"({pos}.)"
 
-        target_dt = _parse_date(target_date or race.get("date") or race.get("tarih") or race.get("Tarih"))
+        # 3) Atın gerçek geçmişinde yalnızca hedef günle aynı tarihli sonuç.
         if target_dt is not None:
             same_day = []
             for row in horse.get("_history", []):
                 if not isinstance(row, dict):
                     continue
-                row_dt = _parse_date(row.get("date") or row.get("tarih") or row.get("Tarih"))
+                row_dt = _parse_date(_rating_row_value(row, [
+                    "date", "tarih", "Tarih", "raceDate", "race_date", "kosuTarihi",
+                    "runDate", "run_date", "eventDate", "event_date",
+                ]))
                 if row_dt != target_dt:
                     continue
-                pos = _position(row.get("place") or row.get("sira") or row.get("S") or row.get("finish") or row.get("position") or row.get("finishPosition") or row.get("rank"))
+                pos = _position(_rating_row_value(row, list(result_keys)))
                 if pos is not None:
                     same_day.append((row, pos))
 
-            # En güçlü eşleşme: atın geçmişinde hedef tarihteki sonuç.
             if same_day:
-                target_city = str(target_city_name or race.get("city") or race.get("hipodrom") or "").strip().lower()
+                target_city = _fold_tr(str(target_city_name or race.get("city") or race.get("hipodrom") or ""))
                 target_distance = re.sub(r"\D", "", str(race.get("distance") or race.get("mesafe") or ""))
-                target_surface = str(race.get("surface") or race.get("pist") or "").strip().lower()
+                target_surface = _normalize_surface_for_table(race.get("surface") or race.get("pist") or "")
                 for row, pos in same_day:
-                    row_city = str(row.get("city") or row.get("şehir") or row.get("sehir") or row.get("hipodrom") or "").strip().lower()
-                    row_distance = re.sub(r"\D", "", str(row.get("distance") or row.get("mesafe") or row.get("msf") or ""))
-                    row_surface = str(row.get("surface") or row.get("pist") or row.get("zemin") or "").strip().lower()
+                    row_city = _fold_tr(str(_rating_row_value(row, ["city", "şehir", "sehir", "hipodrom"]) or ""))
+                    row_distance = re.sub(r"\D", "", str(_rating_row_value(row, ["distance", "mesafe", "msf"]) or ""))
+                    row_surface = _normalize_surface_for_table(_rating_row_value(row, ["surface", "pist", "zemin"]))
                     city_ok = not target_city or not row_city or target_city in row_city or row_city in target_city
                     distance_ok = not target_distance or not row_distance or target_distance == row_distance
-                    surface_ok = not target_surface or not row_surface or target_surface in row_surface or row_surface in target_surface
+                    surface_ok = not target_surface or not row_surface or target_surface == row_surface
                     if city_ok and distance_ok and surface_ok:
                         return f"({pos}.)"
-                # Aynı gün için tek sonuç varsa diğer alanlar eksik olsa bile kabul et.
                 if len(same_day) == 1:
                     return f"({same_day[0][1]}.)"
 
-        # Koşmaz/çekildi bilgisi varsa göster.
         status_text = " ".join(str(horse.get(k, "")) for k in ("name", "horse", "horseName", "status", "durum", "note", "aciklama"))
-        try:
-            status_text += " " + str(get_horse_equipment(horse))
-        except Exception:
-            pass
         if re.search(r"koşmaz|kosmaz|çekildi|cekildi|start almaz", status_text, re.I):
             return "(Koşmaz)"
-        return ""
+        return "(VERİ YOK)"
 
 
     def last_race_display(horse: Dict[str, Any]) -> str:
@@ -4363,7 +4373,8 @@ def render():
                 continue
 
             form = get_horse_form(horse)
-            form_digits = "".join(re.findall(r"[0-9Xx-]", form)) if form != "-" else "-"
+            fallback_form = "".join(re.findall(r"[0-9Xx-]", form)) if form != "-" else "-"
+            form_digits = _last_six_form_digits(horse, selected_date, fallback_form)
             r = by_index.get(
                 horse_index,
                 {"rank": "-", "score": None, "label": "-", "components": {}},
@@ -4399,7 +4410,10 @@ def render():
                 # Ana tabloda at adı, program numarası ve takı ayrı span olarak çizilir.
                 # Görüntü düzeni dışında yarış verisi/hesaplama alanları değiştirilmez.
                 "At İsmi": _main_table_horse_name(horse),
-                "_race_finish": _race_finish_label(horse, selected_race, horse_index, target_date=selected_date, target_city_name=selected_city),
+                "_race_finish": (
+                    _race_finish_label(horse, selected_race, horse_index, target_date=selected_date, target_city_name=selected_city)
+                    if st.session_state.get("real_analysis_done") else ""
+                ),
                 "Yaş": get_horse_age(horse),
                 "Orijin (Baba-Anne)": "\n".join([x for x in _split_origin(get_horse_origin(horse)) if x]),
                 "Kilo": get_horse_weight(horse),
@@ -4606,20 +4620,15 @@ def render():
                 name.style.textOverflow = 'ellipsis';
                 root.appendChild(name);
 
-                const horseNo = String((params.data && params.data._horse_no) ?? '').trim();
-                if (horseNo) {
+                const finish = String((params.data && params.data._race_finish) || '').trim();
+                if (finish) {
                     const result = document.createElement('span');
+                    result.textContent = finish;
                     result.style.whiteSpace = 'nowrap';
                     result.style.flex = '0 0 auto';
-                    result.style.fontSize = '11px';
+                    result.style.fontSize = '10px';
                     result.style.fontWeight = '900';
-                    const left = document.createElement('span');
-                    left.textContent = '('; left.style.color = '#16833b';
-                    const number = document.createElement('span');
-                    number.textContent = horseNo; number.style.color = '#075b25';
-                    const right = document.createElement('span');
-                    right.textContent = ')'; right.style.color = '#16833b';
-                    result.appendChild(left); result.appendChild(number); result.appendChild(right);
+                    result.style.color = finish === '(VERİ YOK)' ? '#b45309' : (finish === '(Koşmaz)' ? '#777777' : '#075b25');
                     root.appendChild(result);
                 }
 
@@ -5062,8 +5071,8 @@ def render():
                 const surfaces = String((params.data && params.data._form_surfaces) || '').split('|');
                 const surfaceColors = {
                     cim: '#168a3a',       // Çim: yeşil
-                    kum: '#c5a044',       // Kum: sarımtırak kum rengi
-                    sentetik: '#873fc4'   // Sentetik: mor
+                    kum: '#ef7d22',       // Kum: turuncu
+                    sentetik: '#e0b800'   // Sentetik: sarı
                 };
                 Array.from(text).slice(0, 6).forEach((ch, index) => {
                     const surface = String(surfaces[index] || '').toLowerCase();
