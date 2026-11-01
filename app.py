@@ -65,13 +65,14 @@ section[data-testid="stSidebar"] .stButton>button:hover{{background:#343d61!impo
 .agf-summary-table tbody tr:nth-child(odd) td{{background:#555b64!important}}
 .agf-summary-table tbody tr:nth-child(even) td{{background:#3b414a!important}}
 .agf-summary-table tbody tr td:nth-child(2){{color:#ffffff!important;font-weight:900!important}}
-/* Üç ana tabloda at adlarını lacivert elips rozet içinde göster */
+/* Üç ana tabloda at adları: lacivert elips + dikkat çekici mavi ışıklı çerçeve */
 .horse-name-pill{{display:inline-flex!important;align-items:center!important;justify-content:center!important;
   max-width:100%!important;min-width:0!important;box-sizing:border-box!important;
   padding:4px 10px!important;border-radius:999px!important;background:#071b3a!important;
   color:#ffffff!important;font-weight:900!important;text-align:center!important;
   line-height:1.15!important;white-space:normal!important;overflow-wrap:break-word!important;
-  border:1px solid #9bb6d8!important;box-shadow:inset 0 0 0 1px #ffffff18!important}}
+  border:2px solid #00cfff!important;
+  box-shadow:0 0 4px #00d9ff,0 0 9px #00aaff,0 0 15px #007bff66,inset 0 0 5px #00cfff55!important}}
 .featured-table tbody td:nth-child(2),.agf-summary-table tbody td:nth-child(2),
 .race-results-table tbody td:nth-child(3){{text-align:center!important}}
 .agf-summary-table tbody tr:hover td{{background:inherit!important}}
