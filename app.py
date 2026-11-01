@@ -561,7 +561,7 @@ elif st.session_state.page == "Yarış Programı":
                     )
                     with st.container(key=race_button_wrap):
                         if st.button(
-                            f'{race_no}. Koşu\n{race_item.get("time", "")}',
+                            f'{race_no}. Koşu',
                             key=race_button_key,
                             use_container_width=True,
                             type="secondary"
@@ -629,8 +629,11 @@ elif st.session_state.page == "Yarış Programı":
                 race_name_text.casefold() == race_class_text.casefold()
                 if race_class_text else False
             )
+            name_is_only_race_number = bool(re.fullmatch(
+                r"\\s*\\d+\\s*\\.?\\s*koşu\\s*", race_name_text, flags=re.I
+            ))
             title_parts = [race_no_text, race_time_text, race_class_text,
-                           "" if name_is_class else race_name_text,
+                           "" if (name_is_class or name_is_only_race_number) else race_name_text,
                            age_text, str(race.get("weight") or "").strip(),
                            distance_text, str(surface or "").strip()]
             header_text = " · ".join(x for x in title_parts if x and x != "—")
