@@ -1,6 +1,7 @@
 
 """Demo veri katmanı. Gerçek veri bağlantıları sonraki aşamada eklenecek."""
 from copy import deepcopy
+import re
 
 WEATHER=[
  {"city":"İstanbul","icon":"🌤️","temp":18,"condition":"Parçalı Bulutlu","wind":"12 km/sa","humidity":"%58","track":"Çim","track_state":"İyi"},
@@ -24,7 +25,8 @@ AGF=[
 NAMES=["Kara Rüzgar","Mavi İnci","Yıldızhan","Sürat Kralı","Beyaz Şimşek","Altın Nefes","Deniz Aslanı","Kırat Beyi","Rüzgarın Oğlu","Işık Han","Göktuğ","Bahar Gülü","Gümüş Kanat","Kuzey Yıldızı","Ateş Kuşu"]
 FORMS=["1 2 4 1 3","2 1 2 3 5","1 3 1 4 2","3 2 2 1 4","1 4 3 2 5","2 5 1 3 2","4 1 3 5 1","3 3 2 4 1","5 2 4 3 2","2 4 5 1 3","4 3 5 2 4","5 4 3 5 2","3 2 4 1 5","2 5 2 3 4","4 2 5 4 1"]
 MG=["2,45","3,20","4,10","4,85","7,20","8,10","9,35","11,20","13,50","14,80","18,50","22,00","24,00","27,50","31,00"]
-FEATURED=[{"Sıra":i+1,"At Adı":NAMES[i],"Son 5 Koşu":FORMS[i],"K / G / Y":["3 / 1 / 1","2 / 2 / 1","2 / 1 / 2","1 / 3 / 1","1 / 2 / 2"][i%5],"Muhtemel Ganyan":MG[i]} for i in range(15)]
+AGF_VALUES=["%32,1","%21,4","%14,8","%11,9","%8,6","%6,8","%5,1","%4,8","%3,9","%3,1","%2,6","%2,0","%1,8","%1,6","%1,4"]
+# Altı yarışlık form dizisi HORSES verisindeki son 6 yarış sütunundan oluşturulur.
 PROGRAM=[
  {"Koşu":"1. Koşu","Saat":"13:30","Hipodrom":"İstanbul","Mesafe / Pist":"1200 m (Çim)","Sınıf":"Şartlı 4","Koşu Adı":"Günün Açılış Koşusu","Koşan At Sayısı":12},
  {"Koşu":"2. Koşu","Saat":"14:00","Hipodrom":"İstanbul","Mesafe / Pist":"1400 m (Kum)","Sınıf":"Handikap 15","Koşu Adı":"Bahar Handikapı","Koşan At Sayısı":14},
@@ -46,6 +48,7 @@ HORSES=[
  ["12","Bahar Gülü","3y D","Flower Alley - Bahar Rengi","52,0","M. Keçeci","N. Şahin","R. Yıldız","11","65","5 4 3 5 2 4","70","1,27","22,00","22,00"],
 ]
 HORSE_COLS=["Sıra","At Adı","Yaş / Cins","Orijin (Baba - Anne)","Sıklet","Jokey","Sahip","Antrenör","St.","HP","Son 6 Y.","KGS","EİD","Sabit Oran","Muhtemel Ganyan"]
+FEATURED=[{"Sıra":i+1,"At Adı":NAMES[i],"Son 6 Koşu":" ".join(HORSES[i][10].split()[-6:]),"K / G / Y":["3 / 1 / 1","2 / 2 / 1","2 / 1 / 2","1 / 3 / 1","1 / 2 / 2"][i%5],"AGF":AGF_VALUES[i],"Muhtemel Ganyan":MG[i]} for i in range(len(HORSES))]
 
 def get_dashboard_data():
     legs1=[
@@ -82,3 +85,125 @@ def get_race_detail(race_no=1):
      "probable_odds":[{"Sıra":h["Sıra"],"At Adı":h["At Adı"],"Muhtemel Ganyan":h["Muhtemel Ganyan"]} for h in horses],
      "past_runs":[{"Tarih":"19.01.2025","Pist":"Çim","Mesafe":"1200","Derece":"1:11.37","Sıra":1},{"Tarih":"29.12.2024","Pist":"Çim","Mesafe":"1400","Derece":"1:23.12","Sıra":2},{"Tarih":"08.12.2024","Pist":"Kum","Mesafe":"1200","Derece":"1:11.90","Sıra":1},{"Tarih":"17.11.2024","Pist":"Çim","Mesafe":"1200","Derece":"1:12.45","Sıra":3},{"Tarih":"27.10.2024","Pist":"Çim","Mesafe":"1400","Derece":"1:23.80","Sıra":1},{"Tarih":"06.10.2024","Pist":"Kum","Mesafe":"1200","Derece":"1:11.96","Sıra":4}],
      "gallops":[{"At":"Kara Rüzgar","Tarih":"24.01.2025","İş":"600/37,8 - 400/24,2","Pist":"İç pist","Not":"Rahat"},{"At":"Mavi İnci","Tarih":"24.01.2025","İş":"800/50,6 - 400/24,8","Pist":"İç pist","Not":"Canlı"},{"At":"Yıldızhan","Tarih":"23.01.2025","İş":"600/38,1 - 400/24,5","Pist":"İç pist","Not":"İyi"},{"At":"Sürat Kralı","Tarih":"23.01.2025","İş":"1000/1.02,4 - 400/24,9","Pist":"İç pist","Not":"Rahat"}]}
+
+# ============================================================
+# TJK RESMİ GÜNLÜK YARIŞ PROGRAMI
+# ============================================================
+def _tjk_norm(value):
+    import unicodedata
+    value=str(value or "").translate(str.maketrans({"ı":"i","İ":"i","ş":"s","Ş":"s","ğ":"g","Ğ":"g","ü":"u","Ü":"u","ö":"o","Ö":"o","ç":"c","Ç":"c"}))
+    value=unicodedata.normalize("NFKD",value)
+    value="".join(ch for ch in value if not unicodedata.combining(ch))
+    return re.sub(r"[^a-z0-9]+","",value.lower())
+
+def _tjk_cell_text(cell):
+    return re.sub(r"\s+"," ",cell.get_text(" ",strip=True)).strip()
+
+def _tjk_city_links(html,base_url):
+    from bs4 import BeautifulSoup
+    from urllib.parse import urljoin,urlparse,parse_qs
+    soup=BeautifulSoup(html,"html.parser")
+    found={}
+    for a in soup.find_all("a",href=True):
+        href=a.get("href","")
+        if "SehirAdi" not in href or "SehirId" not in href: continue
+        full=urljoin(base_url,href)
+        query=parse_qs(urlparse(full).query)
+        city=(query.get("SehirAdi") or [""])[0].strip()
+        if not city: continue
+        label=re.sub(r"\s*\([^)]*\)\s*","",_tjk_cell_text(a)).strip() or city
+        if label.lower() not in {"karma"}: found[label]=full
+    return found
+
+def _tjk_find_header_row(table):
+    rows=table.find_all("tr")
+    aliases={"atisimi","atismi","atadi","jokey","siklet","hp"}
+    for idx,row in enumerate(rows[:10]):
+        cells=row.find_all(["th","td"],recursive=False)
+        vals=[_tjk_norm(_tjk_cell_text(c)) for c in cells]
+        if len(set(vals)&aliases)>=2: return idx,cells
+    return None,None
+
+def _tjk_parse_horse_tables(html):
+    from bs4 import BeautifulSoup
+    soup=BeautifulSoup(html,"html.parser")
+    page_text=soup.get_text("\n",strip=True)
+    matches=list(re.finditer(r"(?i)(\d{1,2})\s*\.\s*koşu",page_text))
+    meta={}
+    for i,m in enumerate(matches):
+        no=int(m.group(1)); stop=matches[i+1].start() if i+1<len(matches) else min(len(page_text),m.end()+5000)
+        chunk=page_text[m.start():stop]; lines=[x.strip() for x in chunk.splitlines() if x.strip()]
+        tm=re.search(r"\b(?:[01]?\d|2[0-3]):[0-5]\d\b",chunk)
+        dist=re.search(r"\b(\d{3,4})\s*(?:m|metre)\b",chunk,re.I)
+        surf=re.search(r"\b(Çim|Kum|Sentetik)\b",chunk,re.I)
+        prize=re.search(r"(?:₺\s*)?(\d{1,3}(?:\.\d{3})+(?:,\d{2})?)\s*(?:₺|TL)",chunk,re.I)
+        name=next((x for x in lines[1:10] if len(x)<=110 and re.search(r"(?i)(koşusu|kupası|ödülü)",x)),"")
+        cls_match=re.search(r"(?i)(maiden|şartlı\s*\d*|handikap\s*\d*|kv-\s*\d+|satış\s*\d*)",chunk)
+        cls=cls_match.group(0).strip() if cls_match else ""
+        age_match=re.search(r"(?i)(\d+\s*(?:ve\s*yukarı\s*)?yaşlı\s+(?:ingilizler|araplar)|\d+\s*yaşlı\s+(?:ingiliz|arap))",chunk)
+        age=age_match.group(0).strip() if age_match else ""
+        meta[no]={"no":no,"time":tm.group(0) if tm else "","name":name,"class":cls,"age":age,"distance":f"{dist.group(1)} m" if dist else "","surface":surf.group(1).title() if surf else "","prize":f"{prize.group(1)} ₺" if prize else ""}
+
+    tables=[]
+    for table in soup.find_all("table"):
+        hidx,hcells=_tjk_find_header_row(table)
+        if hidx is None: continue
+        headers=[_tjk_norm(_tjk_cell_text(c)) for c in hcells]
+        horses=[]
+        for row in table.find_all("tr")[hidx+1:]:
+            cells=row.find_all(["td","th"],recursive=False); vals=[_tjk_cell_text(c) for c in cells]
+            if not vals or not any(vals): continue
+            rowmap={h:(vals[j] if j<len(vals) else "") for j,h in enumerate(headers)}
+            name=rowmap.get("atisimi") or rowmap.get("atismi") or rowmap.get("atadi")
+            if not name or _tjk_norm(name) in {"atisimi","atismi","atadi"}: continue
+            horses.append(rowmap)
+        if horses: tables.append((table,horses))
+
+    result={}
+    for idx,(table,rows) in enumerate(tables,1):
+        no=idx
+        meta.setdefault(no,{"no":no,"time":"","name":"","class":"","age":"","distance":"","surface":"","prize":""})
+        horses=[]
+        for row in rows:
+            def v(*keys):
+                return next((row[k] for k in keys if row.get(k)),"")
+            horses.append({
+                "Sıra":v("n","sira","forma"),"At Adı":v("atisimi","atismi","atadi"),
+                "Yaş / Cins":v("yas","yascins","yascinsiyet"),"Orijin (Baba - Anne)":v("orijinbabaanne","orijinbabaannen","orijinbabaannesi","orijin"),
+                "Sıklet":v("siklet","kilo"),"Jokey":v("jokey"),"Sahip":v("sahip","atsahibi"),
+                "Antrenör":v("antrenor"),"St.":v("st","start"),"HP":v("hp"),"Son 6 Y.":v("son6y","son6yaris","form"),
+                "KGS":v("kgs"),"EİD":v("eniyid","eniyiderece","eid"),"Sabit Oran":v("sabit oran","oran"),
+                "Muhtemel Ganyan":v("gny","ganyan")})
+        race=meta[no]; race["runners"]=len(horses)
+        result[no]={"race":race,"horses":horses,
+            "fixed_odds":[{"Sıra":h["Sıra"],"At Adı":h["At Adı"],"Sabit Oran":h["Sabit Oran"]} for h in horses if h["Sabit Oran"]],
+            "probable_odds":[{"Sıra":h["Sıra"],"At Adı":h["At Adı"],"Muhtemel Ganyan":h["Muhtemel Ganyan"]} for h in horses if h["Muhtemel Ganyan"]],
+            "past_runs":[],"gallops":[]}
+    return result
+
+def get_tjk_race_program(date_text):
+    """TJK resmi Günlük Yarış Programı sayfasından DD/MM/YYYY tarihli programı alır."""
+    import requests
+    from urllib.parse import urljoin
+    base="https://www.tjk.org/TR/Yetistiricilik/Info/Page/GunlukYarisProgrami"
+    session=requests.Session()
+    session.headers.update({"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36","Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8","Accept-Language":"tr-TR,tr;q=0.9,en-US;q=0.7","Referer":"https://www.tjk.org/"})
+    response=session.get(base,params={"QueryParameter_Tarih":date_text},timeout=30); response.raise_for_status()
+    response.encoding=response.apparent_encoding or "utf-8"
+    links=_tjk_city_links(response.text,response.url)
+    if not links: raise RuntimeError("TJK sayfasında seçilen tarihe ait hipodrom bağlantıları bulunamadı.")
+    tracks=[]; races_by_track={}; details={}
+    for city,url in links.items():
+        try:
+            page=session.get(url,timeout=30); page.raise_for_status(); page.encoding=page.apparent_encoding or "utf-8"
+            parsed=_tjk_parse_horse_tables(page.text)
+            if not parsed: continue
+            tracks.append(city); races=[]
+            for no in sorted(parsed):
+                detail=parsed[no]; race=dict(detail["race"]); race["track"]=city
+                races.append(race); details[f"{city}|{no}"]={k:v for k,v in detail.items() if k!="race"}
+            races_by_track[city]=races
+        except requests.RequestException:
+            continue
+    if not tracks: raise RuntimeError("TJK sayfasına erişildi ancak seçilen tarihin koşu tabloları okunamadı.")
+    return {"tracks":tracks,"races_by_track":races_by_track,"details":details}
