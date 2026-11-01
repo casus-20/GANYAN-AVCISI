@@ -139,11 +139,20 @@ def _tjk_parse_horse_tables(html):
         surf=re.search(r"\b(Çim|Kum|Sentetik)\b",chunk,re.I)
         prize=re.search(r"(?:₺\s*)?(\d{1,3}(?:\.\d{3})+(?:,\d{2})?)\s*(?:₺|TL)",chunk,re.I)
         name=next((x for x in lines[1:10] if len(x)<=110 and re.search(r"(?i)(koşusu|kupası|ödülü)",x)),"")
-        cls_match=re.search(r"(?i)(maiden|şartlı\s*\d*|handikap\s*\d*|kv-\s*\d+|satış\s*\d*)",chunk)
+        cls_match=re.search(r"(?i)(maiden|şartlı\s*\d*|handikap\s*\d*|kv-?\s*\d+|satış\s*\d*|grup\s*\d*)",chunk)
         cls=cls_match.group(0).strip() if cls_match else ""
         age_match=re.search(r"(?i)(\d+\s*(?:ve\s*yukarı\s*)?yaşlı\s+(?:ingilizler|araplar)|\d+\s*yaşlı\s+(?:ingiliz|arap))",chunk)
         age=age_match.group(0).strip() if age_match else ""
-        meta[no]={"no":no,"time":tm.group(0) if tm else "","name":name,"class":cls,"age":age,"distance":f"{dist.group(1)} m" if dist else "","surface":surf.group(1).title() if surf else "","prize":f"{prize.group(1)} ₺" if prize else ""}
+        # TJK'nın koşu başlık satırını ve ödül dağılımı satırlarını olduğu gibi sakla.
+        # Bu satırlar koşu tablosunun üstündeki renkli bilgi bandında gösterilir.
+        detail_line = next((ln for ln in lines if re.search(r"(?i)(maiden|şartlı|handikap|kv-?\s*\d+|satış|grup)\b", ln)
+                            and re.search(r"(?i)(kum|çim|sentetik)", ln)
+                            and re.search(r"(?i)\bkg\b", ln)), "")
+        prize_lines = [ln for ln in lines if re.search(r"(?i)(ikramiye|yetiştirici\s*primi|at\s*sahibi\s*primi)", ln)]
+        race_details = " | ".join(x for x in [detail_line, *prize_lines] if x)
+        meta[no]={"no":no,"time":tm.group(0) if tm else "","name":name,"class":cls,"age":age,
+                  "distance":f"{dist.group(1)} m" if dist else "","surface":surf.group(1).title() if surf else "",
+                  "prize":f"{prize.group(1)} ₺" if prize else "","details":race_details}
 
     # TJK programında eküri bilgisi çoğunlukla tablonun altında
     # [(1)AT ADI,(5)DİĞER AT] eküridir. biçiminde yayımlanır.
@@ -414,7 +423,7 @@ def get_tjk_program(date_value, city):
             "no": no, "time": race_meta.get("time") or "", "name": race_meta.get("name") or f"{no}. Koşu",
             "class": race_meta.get("class") or "", "age": race_meta.get("age") or "",
             "distance": race_meta.get("distance") or "", "surface": race_meta.get("surface") or "",
-            "prize": race_meta.get("prize") or "", "horses": horses,
+            "prize": race_meta.get("prize") or "", "details": race_meta.get("details") or "", "horses": horses,
         })
     if not races:
         raise RuntimeError(f"TJK {actual_city} programı bulundu ancak koşu/at tablosu ayrıştırılamadı.")
