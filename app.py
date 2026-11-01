@@ -93,10 +93,12 @@ section[data-testid="stSidebar"] .stButton>button:hover{{background:#343d61!impo
 .race-program-scroll{{overflow-x:auto!important;overflow-y:auto!important;max-width:100%!important}}
 .race-program-table{{width:100%!important;min-width:1320px!important;table-layout:fixed!important;border-collapse:collapse!important;background:#f1f1ef!important;color:#111!important;font-size:11px!important;font-weight:900!important;text-transform:uppercase!important}}
 .race-program-table th{{background:#30343b!important;color:#fff!important;font-size:10px!important;font-weight:900!important;padding:7px 4px!important;text-align:left!important;border-right:1px solid #59616a!important;white-space:nowrap!important}}
-.race-program-table td{{padding:5px 4px!important;border-bottom:1px solid #c9cdd2!important;color:#111!important;font-size:11px!important;font-weight:900!important;line-height:1.08!important;overflow-wrap:anywhere!important;vertical-align:middle!important}}
-.race-program-table tbody tr{{height:48px!important;min-height:48px!important}}
+.race-program-table td{{padding:4px 4px!important;border-bottom:1px solid #c9cdd2!important;color:#111!important;font-size:11px!important;font-weight:900!important;line-height:1.08!important;overflow-wrap:anywhere!important;vertical-align:middle!important}}
+.race-program-table tbody tr{{height:43px!important;min-height:43px!important}}
 .race-program-table td.rp-eid-cell{{white-space:nowrap!important;overflow:visible!important}}
-.race-program-table .rp-eid-value{{display:inline-block;color:#d40000!important;font-weight:900!important;cursor:help!important;border-bottom:1px dotted #d40000!important}}
+ .race-program-table .rp-eid-value{{display:inline-block;position:relative;color:#d40000!important;font-weight:900!important;cursor:help!important;border-bottom:1px dotted #d40000!important}}
+.race-program-table .rp-eid-value:hover::after,.race-program-table .rp-eid-value:focus::after{{content:attr(data-tooltip);position:absolute;left:50%;bottom:calc(100% + 8px);transform:translateX(-50%);z-index:99999;display:block;width:max-content;max-width:340px;min-width:180px;padding:9px 11px;border:1px solid #59627a;border-radius:7px;background:#111827;color:#fff;font-size:11px;font-weight:700;line-height:1.45;white-space:pre-line;text-align:left;box-shadow:0 5px 18px #0009;pointer-events:none;text-transform:none}}
+.race-program-table .rp-eid-value:hover::before,.race-program-table .rp-eid-value:focus::before{{content:"";position:absolute;left:50%;bottom:calc(100% + 2px);transform:translateX(-50%);border:6px solid transparent;border-top-color:#111827;z-index:100000;pointer-events:none}}
 .race-program-table tbody tr:nth-child(odd) td{{background:#e7e7e5!important}}
 .race-program-table tbody tr:nth-child(even) td{{background:#f7f7f5!important}}
 .race-program-table tbody tr:hover td{{background:#dceaf4!important}}
@@ -557,6 +559,24 @@ elif st.session_state.page == "Yarış Programı":
                 import html as _html
                 import re as _re
 
+                def _format_program_weight(value):
+                    raw = str(value or "").strip()
+                    if not raw:
+                        return ""
+                    m = _re.search(r"(?P<base>\\d+(?:[.,]\\d+)?)\\s*(?:KG)?\\s*(?P<extra>[+]\\s*\\d+(?:[.,]\\d+)?)?", raw, flags=_re.I)
+                    if not m:
+                        return raw
+                    base = m.group("base").replace(".", ",")
+                    extra = (m.group("extra") or "").replace(" ", "").replace(".", ",")
+                    return f"{base} KG" + (f" {extra}" if extra else "")
+
+                def _format_program_st(value):
+                    raw = str(value or "").strip()
+                    if not raw:
+                        return ""
+                    m = _re.search(r"\\d+", raw)
+                    return f"{m.group(0)} TS" if m else raw
+
                 def _split_program_horse_name(horse):
                     raw = str(horse.get("name") or horse.get("at_ismi") or "").strip()
                     raw = _re.sub(r"\s*Image.*$", "", raw, flags=_re.I)
@@ -586,12 +606,12 @@ elif st.session_state.page == "Yarış Programı":
                         "At İsmi": horse_name,
                         "Yaş": h.get("age") or h.get("yas") or "",
                         "Orijin (Baba-Anne)": h.get("origin") or h.get("orijin") or "",
-                        "Kilo": h.get("weight") or h.get("siklet") or "",
+                        "Kilo": _format_program_weight(h.get("weight") or h.get("siklet") or ""),
                         "Jokey": h.get("jockey") or h.get("jokey") or "",
                         "Sahip / Antrenör": "",
                         "_owner": owner,
                         "_trainer": trainer,
-                        "St": h.get("st") or "",
+                        "St": _format_program_st(h.get("st") or ""),
                         "HP": h.get("hp") or "",
                         "Son 6 Y.": h.get("form") or h.get("last6") or "",
                         "KGS": h.get("kgs") or "",
@@ -636,6 +656,16 @@ elif st.session_state.page == "Yarış Programı":
                             safe = f'<span class="rp-origin-sire">{sire}</span>'
                             if dam:
                                 safe += f'<br><span class="rp-origin-dam">{dam}</span>'
+                        elif key == "Kilo":
+                            km = _re.match(r"^(\\d+(?:[.,]\\d+)?) KG(?:\\s+([+]\\d+(?:[.,]\\d+)?))?$", value, flags=_re.I)
+                            if km:
+                                base = _html.escape(km.group(1) + " KG")
+                                extra = f' <span style="color:#d40000!important;font-weight:900!important">{_html.escape(km.group(2))}</span>' if km.group(2) else ""
+                                safe = base + extra
+                        elif key == "St":
+                            sm = _re.match(r"^(\\d+) TS$", value, flags=_re.I)
+                            if sm:
+                                safe = f'{_html.escape(sm.group(1))} <span style="color:#d40000!important;font-weight:900!important">TS</span>'
                         elif key == "Jokey":
                             safe = f'<span class="rp-jockey">{safe}</span>'
                         elif key == "Sahip / Antrenör":
@@ -650,7 +680,7 @@ elif st.session_state.page == "Yarış Programı":
                             eid_info = str(row.get("_eid_info", "") or "").strip()
                             # Tooltip içeriği güvenli biçimde HTML attribute'a yazılır.
                             tooltip = _html.escape(eid_info, quote=True)
-                            safe = f'<span class="rp-eid-value" title="{tooltip}">{safe}</span>'
+                            safe = f'<span class="rp-eid-value" tabindex="0" data-tooltip="{tooltip}">{safe}</span>'
                             cells.append(f'<td class="rp-eid-cell">{safe}</td>')
                         else:
                             cells.append(f"<td>{safe}</td>")
