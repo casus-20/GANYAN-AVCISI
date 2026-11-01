@@ -11,7 +11,7 @@ def render():
     from typing import Any, Dict, List
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    from tjk_fetch import get_program, get_horse_enrichment
+    from tjk_fetch import get_program, get_horse_enrichment, get_active_cities as get_tjk_active_cities
 
     # BİZİM SKOR: Uygulama ile aynı klasördeki sabit 5 bileşenli motoru
     # zorunlu olarak yükle. Böylece Streamlit ortamında eski/başka bir
@@ -611,60 +611,21 @@ def render():
     # ============================================================
 
     def load_active_cities(selected_date: date) -> List[str]:
-        """
-        Seçilen tarihte GERÇEKTEN yarış programı bulunan hipodromları bulur.
-
-        ÖNEMLİ: Bu fonksiyon bilinçli olarak st.cache_data ile cache'lenmez.
-        Worker geçici hata verdiğinde boş listenin 15 dakika cache'lenmesi,
-        "Bu tarih için hipodrom listesi alınamadı" hatasına neden oluyordu.
-
-        Her şehir en fazla 3 kez denenir. Aynı anda en fazla 2 Worker isteği
-        gönderilir. Yalnızca races listesi dolu olan şehir aktif kabul edilir.
-        Sonuç her zaman ALL_CITIES sırasına göre döndürülür.
-        """
+        """TJK günlük program ana sayfasından bulunan ve programı dolu hipodromlar."""
         cache_key = selected_date.isoformat()
         cached = st.session_state.get("_active_cities_cache", {})
         if isinstance(cached, dict):
             saved = cached.get(cache_key)
             if isinstance(saved, list) and saved:
-                return [c for c in ALL_CITIES if c in saved]
+                return saved
 
-        def check_city(city: str):
-            for attempt in range(3):
-                try:
-                    data = load_program(selected_date, city)
-                    if not isinstance(data, dict):
-                        continue
-                    races = data.get("races", [])
-                    if isinstance(races, list) and len(races) > 0:
-                        return city
-                except Exception:
-                    # Geçici Worker/TJK hatasında şehir elenmesin; tekrar dene.
-                    pass
-            return None
-
-        active = []
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = {executor.submit(check_city, city): city for city in ALL_CITIES}
-            for future in as_completed(futures):
-                try:
-                    city = future.result()
-                    if city:
-                        active.append(city)
-                except Exception:
-                    pass
-
-        # Worker şehir sırasını koru; tamamlanma sırasını kullanma.
-        active = [city for city in ALL_CITIES if city in active]
-
-        # SADECE dolu sonuç cache'e alınır. Boş sonuç asla cache'lenmez.
+        active = get_tjk_active_cities(selected_date)
         if active:
             cached = st.session_state.get("_active_cities_cache", {})
             if not isinstance(cached, dict):
                 cached = {}
             cached[cache_key] = active
             st.session_state["_active_cities_cache"] = cached
-
         return active
 
 
@@ -3474,16 +3435,18 @@ def render():
             key="selected_date_widget",
         )
 
-    # Hipodrom listesi, programı olan şehirler bulunamasa bile seçilebilir kalır.
-    # Böylece kullanıcı tarih + hipodrom seçip PROGRAMI GETİR ile TJK sorgusunu başlatabilir.
+    # Hipodromlar sabit listeden değil, seçilen tarihin TJK günlük program
+    # ana sayfasındaki gerçek bağlantılardan keşfedilir. Programı olmayan yerler gösterilmez.
     try:
-        with st.spinner("TJK hipodrom listesi kontrol ediliyor..."):
+        with st.spinner("TJK günlük programından yarış olan yerli ve yabancı hipodromlar alınıyor..."):
             active_cities = load_active_cities(selected_date)
-    except Exception:
-        active_cities = []
+    except Exception as exc:
+        st.error(f"TJK hipodrom listesi alınamadı: {exc}")
+        st.stop()
 
     if not active_cities:
-        active_cities = ALL_CITIES
+        st.warning("Seçilen tarihte TJK günlük program sayfasından doğrulanmış yarış programı bulunan hipodrom bulunamadı.")
+        st.stop()
 
     if st.session_state.loaded_city in active_cities:
         default_city_index = active_cities.index(st.session_state.loaded_city)
