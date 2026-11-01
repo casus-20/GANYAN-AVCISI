@@ -750,21 +750,29 @@ def render():
 
 
     def _extract_equipment_from_text(text: Any) -> str:
-        """TJK takı kodlarını, isim hücresine gömülmüşse de yakalar."""
+        """At adının sonundaki TJK takı kodlarını, açıklama eklenmiş olsa da bulur."""
         value = display_value(text, "")
         if not value:
             return ""
-        # Takı kodları TJK'da boşlukla ayrılabilir: DB SK, KG SK, KG K GKR vb.
-        m = re.search(
-            r"(?:^|\s)((?:DB|KG|K|SKG|SK|GKR|G|D|B|H|TT|M|SGK)(?:\s+(?:DB|KG|K|SKG|SK|GKR|G|D|B|H|TT|M|SGK)){0,5})$",
-            value,
-            flags=re.I,
-        )
-        return m.group(1).upper().strip() if m else ""
+        code = r"(?:SKG|GKR|SGK|DB|KG|SK|K|G|D|B|H|TT|M)"
+        # Kodların ardından TJK'nın açıklama metni gelebilir: "DB Dilinin...",
+        # "SKG Ring mahalinden..." gibi. Bu açıklamalar ekipman kodu değildir.
+        desc = r"(?:Ring|Kulaklık|Kulaklik|Kapalı|Kapali|Dilbağı|Dilbagi|Dilinin|Gözlük|Gozluk|Taki|Takı)"
+        patterns = [
+            rf"\b({code}(?:\s+{code}){{0,5}})\s+(?={desc}\b).*$",
+            rf"\b({code}(?:\s+{code}){{0,5}})\s*$",
+        ]
+        for pattern in patterns:
+            m = re.search(pattern, value, flags=re.I)
+            if m:
+                return " ".join(x.upper() for x in m.group(1).split())
+        return ""
 
 
     def get_horse_equipment(horse: Dict[str, Any]) -> str:
-        """Bugünkü programdaki gerçek Takı bilgisini alır."""
+        """Bugünkü TJK programındaki takı kodlarını ayrı ve kısa gösterim için alır."""
+        raw_name = horse.get("name") or horse.get("at_ismi") or horse.get("At İsmi") or ""
+        extracted = _extract_equipment_from_text(raw_name)
         direct = (
             horse.get("equipment")
             or horse.get("taki")
@@ -772,26 +780,32 @@ def render():
             or horse.get("takı")
         )
         if direct:
-            return display_value(direct, "")
-        # Bazı TJK sürümlerinde takı, At İsmi hücresinin içinde gelir.
-        return _extract_equipment_from_text(
-            horse.get("name") or horse.get("at_ismi") or horse.get("At İsmi")
-        )
+            direct_text = display_value(direct, "")
+            direct_codes = _extract_equipment_from_text(direct_text)
+            if direct_codes:
+                return direct_codes
+            # Alan yalnızca kodlardan oluşuyorsa aynen, küçük harf/boşluk farkı olmadan göster.
+            code_tokens = re.findall(r"(?i)\b(?:SKG|GKR|SGK|DB|KG|SK|K|G|D|B|H|TT|M)\b", direct_text)
+            if code_tokens:
+                return " ".join(x.upper() for x in code_tokens[:6])
+        return extracted
 
 
     def _main_table_horse_name(horse: Dict[str, Any]) -> str:
-        """Ana tabloda at adından TJK'nın uzun takı/açıklama metnini ayırır.
-
-        Sadece görüntüleme içindir; kaynak horse nesnesi ve analiz verisi değişmez.
-        """
-        name = get_horse_name(horse)
-        # Bazı günlük bültenlerde ekipman açıklaması at adına eklenmiş geliyor.
-        # Örn: WOLF WOMEN SKG Ring mahalinden ... -> WOLF WOMEN SKG
+        """At adını takı kodlarından ve takı açıklamalarından ayırır (yalnızca görünüm)."""
+        name = str(get_horse_name(horse) or "").strip()
+        code = r"(?:SKG|GKR|SGK|DB|KG|SK|K|G|D|B|H|TT|M)"
+        desc = r"(?:Ring|Kulaklık|Kulaklik|Kapalı|Kapali|Dilbağı|Dilbagi|Dilinin|Gözlük|Gozluk|Takı|Taki)"
+        # Önce kod + açıklama biçimini kes: "ASLAN SAİM DB Dilinin ..."
+        name = re.sub(rf"\s+{code}(?:\s+{code}){{0,5}}\s+(?={desc}\b).*$", "", name, flags=re.I)
+        # Ardından sonda yer alan yalnızca takı kodlarını at adından ayır.
+        name = re.sub(rf"\s+{code}(?:\s+{code}){{0,5}}\s*$", "", name, flags=re.I)
+        # Eski uzun açıklama varyantlarını da temizle.
         name = re.sub(
             r"\s+(?:Ring|Kulaklık|Kulaklik|Kapalı\s+gözlük|Kapali\s+gozluk|"
             r"Dilbağı|Dil bagi|Gözlük|Gozluk|Takı|Taki)\b.*$",
             "",
-            str(name or ""),
+            name,
             flags=re.I,
         ).strip()
         return name
