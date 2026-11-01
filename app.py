@@ -89,23 +89,31 @@ section[data-testid="stSidebar"] .stButton>button:hover{{background:#343d61!impo
 .race-results-table .result-agf{{display:inline-block;background:#fff;color:#005BB3;padding:3px 5px;border-radius:999px;font-size:10px;font-weight:900;white-space:nowrap}}
 
 
-/* Yarış Programı - referans görseldeki açık gri/pembe tablo görünümü */
-.race-program-table{{width:100%!important;min-width:0!important;table-layout:fixed!important;border-collapse:collapse!important;background:#f1f1ef!important;color:#111!important;font-size:10px!important;font-weight:900!important;text-transform:uppercase!important}}
-.race-program-table th{{background:#30343b!important;color:#fff!important;font-size:9px!important;font-weight:900!important;padding:6px 4px!important;text-align:left!important;border-right:1px solid #59616a!important;white-space:nowrap!important}}
-.race-program-table td{{padding:7px 5px!important;border-bottom:1px solid #c9cdd2!important;color:#111!important;font-size:10px!important;font-weight:900!important;line-height:1.18!important;overflow-wrap:anywhere!important;vertical-align:middle!important}}
+/* Yarış Programı: Yarış Analizi ana tablosuyla aynı yoğunluk ve tipografi */
+.race-program-scroll{{overflow-x:auto!important;overflow-y:auto!important;max-width:100%!important}}
+.race-program-table{{width:100%!important;min-width:1320px!important;table-layout:fixed!important;border-collapse:collapse!important;background:#f1f1ef!important;color:#111!important;font-size:11px!important;font-weight:900!important;text-transform:uppercase!important}}
+.race-program-table th{{background:#30343b!important;color:#fff!important;font-size:10px!important;font-weight:900!important;padding:7px 4px!important;text-align:left!important;border-right:1px solid #59616a!important;white-space:nowrap!important}}
+.race-program-table td{{padding:8px 5px!important;border-bottom:1px solid #c9cdd2!important;color:#111!important;font-size:11px!important;font-weight:900!important;line-height:1.15!important;overflow-wrap:anywhere!important;vertical-align:middle!important}}
 .race-program-table tbody tr:nth-child(odd) td{{background:#e7e7e5!important}}
-.race-program-table tbody tr:nth-child(even) td{{background:#f4dedd!important}}
+.race-program-table tbody tr:nth-child(even) td{{background:#f7f7f5!important}}
 .race-program-table tbody tr:hover td{{background:#dceaf4!important}}
 .race-program-table tbody td:nth-child(1){{text-align:center!important;color:#111!important}}
-.race-program-table tbody td:nth-child(2){{color:#c00018!important;font-weight:900!important}}
+.race-program-table .rp-horse-name{{color:#071b69!important;font-size:12px!important;font-weight:900!important}}
+.race-program-table .rp-horse-no{{color:#16833b!important;font-size:11px!important;font-weight:900!important}}
+.race-program-table .rp-equipment{{color:#d00000!important;font-size:9px!important;font-weight:900!important;white-space:nowrap!important}}
+.race-program-table .rp-origin-sire{{color:#005bb3!important;font-weight:900!important}}
+.race-program-table .rp-origin-dam{{color:#c00018!important;font-size:9px!important;font-weight:900!important}}
+.race-program-table .rp-jockey{{color:#029456!important;font-weight:900!important}}
+.race-program-table .rp-owner{{color:#005bb3!important;font-weight:900!important}}
+.race-program-table .rp-trainer{{color:#c00018!important;font-weight:900!important}}
 .race-program-table tbody td:nth-child(4){{color:#005bb3!important;font-weight:900!important}}
 .race-program-table tbody td:nth-child(6){{color:#029456!important;font-weight:900!important}}
-.race-program-table tbody td:nth-child(7),.race-program-table tbody td:nth-child(8){{color:#005bb3!important;font-weight:900!important}}
-.race-program-table tbody td:nth-child(10){{color:#e00016!important;font-weight:900!important}}
-.race-program-table tbody td:nth-child(12){{color:#f07800!important;font-weight:900!important}}
+.race-program-table tbody td:nth-child(7){{color:#005bb3!important;font-weight:900!important}}
+.race-program-table tbody td:nth-child(10){{color:#111!important;font-weight:900!important}}
+.race-program-table tbody td:nth-child(11){{color:#f07800!important;font-weight:900!important}}
 .race-program-table tbody td:nth-child(13){{color:#e00016!important;font-weight:900!important}}
-.race-program-table tbody td:nth-child(15){{color:#0795a5!important;font-weight:900!important}}
-.race-program-table .scroll-table{{overflow-x:auto!important;overflow-y:auto!important}}
+.race-program-table tbody td:nth-child(14){{color:#0795a5!important;font-weight:900!important}}
+.race-program-table tbody td:nth-child(15){{color:#029456!important;font-weight:900!important}}
 
 .data-table td:nth-child(2){{color:#c00018;font-weight:900}}
 .data-table td:nth-child(4){{color:#005BB3;font-weight:900}}
@@ -396,84 +404,261 @@ if st.session_state.page == "Ana Sayfa":
         table(pd.DataFrame(d["program"]), 210)
 
 elif st.session_state.page == "Yarış Programı":
+    from tjk_fetch import get_active_cities as _get_tjk_active_cities, get_program as _get_tjk_program
+
     hero(True)
-    f1,f2=st.columns([1.1,1.2],gap="small")
+    f1, f2 = st.columns([1.1, 1.2], gap="small")
     with f1:
         with st.container(border=True):
-            selected_date=st.date_input("Tarih",value=pd.Timestamp.today().date(),format="DD.MM.YYYY",key="tjk_program_date")
+            selected_date = st.date_input(
+                "Tarih", value=pd.Timestamp.today().date(),
+                format="DD.MM.YYYY", key="tjk_program_date"
+            )
+
     @st.cache_data(ttl=300, show_spinner=False)
-    def _cached_tjk_program(date_text):
-        return get_tjk_race_program(date_text)
+    def _cached_tjk_active_cities(date_iso):
+        return _get_tjk_active_cities(date_iso)
 
-    with st.spinner("Seçilen tarihin TJK yarış programı yükleniyor..."):
-        try:
-            tjk_data = _cached_tjk_program(selected_date.strftime("%d/%m/%Y"))
-        except Exception as exc:
-            st.error("TJK yarış programı alınamadı. Biraz sonra tekrar deneyin.")
-            st.caption(f"Bağlantı ayrıntısı: {type(exc).__name__}: {exc}")
-            st.stop()
-
-    tracks = tjk_data.get("tracks", [])
-    if not tracks:
-        st.warning(f"{selected_date.strftime('%d.%m.%Y')} tarihinde TJK günlük programında hipodrom bulunamadı.")
+    try:
+        tracks = _cached_tjk_active_cities(selected_date.isoformat())
+    except Exception as exc:
+        st.error(f"TJK hipodrom listesi alınamadı: {exc}")
         st.stop()
 
-    track_options = tracks
+    if not tracks:
+        st.warning(f"{selected_date.strftime('%d.%m.%Y')} tarihinde TJK tarafından doğrulanan yarışlı hipodrom bulunamadı.")
+        st.stop()
+
     previous_track = st.session_state.get("tjk_selected_track")
-    default_track = previous_track if previous_track in track_options else tracks[0]
-    if st.session_state.get("tjk_track_select") not in track_options:
+    default_track = previous_track if previous_track in tracks else tracks[0]
+    if st.session_state.get("tjk_track_select") not in tracks:
         st.session_state["tjk_track_select"] = default_track
     with f2:
         with st.container(border=True):
-            track=st.selectbox("Hipodrom",track_options,index=track_options.index(default_track),key="tjk_track_select")
-    selected_track = track
-    if st.session_state.get("_tjk_program_context") != (selected_date.isoformat(), selected_track):
-        st.session_state["_tjk_program_context"] = (selected_date.isoformat(), selected_track)
+            track = st.selectbox(
+                "Hipodrom", tracks,
+                index=tracks.index(default_track),
+                key="tjk_track_select"
+            )
+
+    if st.session_state.get("_tjk_program_context") != (selected_date.isoformat(), track):
+        st.session_state["_tjk_program_context"] = (selected_date.isoformat(), track)
         st.session_state["race_no"] = 1
     st.session_state["tjk_selected_track"] = track
 
-    races = tjk_data.get("races_by_track", {}).get(selected_track, [])
+    @st.cache_data(ttl=300, show_spinner=False)
+    def _cached_tjk_program(date_iso, city):
+        return _get_tjk_program(date_iso, city)
+
+    with st.spinner(f"TJK {track} programı doğrulanıyor..."):
+        try:
+            tjk_data = _cached_tjk_program(selected_date.isoformat(), track)
+            if not isinstance(tjk_data, dict):
+                raise RuntimeError("TJK geçerli program verisi döndürmedi.")
+            if str(tjk_data.get("date") or "") != selected_date.isoformat():
+                raise RuntimeError("TJK yanıtındaki tarih seçilen tarihle uyuşmuyor.")
+            if str(tjk_data.get("city") or "").strip().casefold() != track.strip().casefold():
+                raise RuntimeError("TJK yanıtındaki hipodrom seçilen hipodromla uyuşmuyor.")
+        except Exception as exc:
+            st.error(f"Seçilen tarih/hipodrom için TJK programı doğrulanamadı: {exc}")
+            st.stop()
+
+    races = tjk_data.get("races", [])
+    races = sorted(
+        [r for r in races if isinstance(r, dict)],
+        key=lambda r: int(r.get("no") or r.get("race_number") or 999)
+    )
+
     with st.container(border=True):
-        x,y=st.columns([1,1.7])
-        with x: title("▦","Günün Yarış Programı",f"({track})")
+        x, y = st.columns([1, 1.7])
+        with x:
+            title("▦", "Günün Yarış Programı", f"({track})")
         with y:
             if races:
                 times = [r.get("time") for r in races if r.get("time")]
                 first_time = times[0] if times else "—"
                 last_time = times[-1] if times else "—"
-                st.markdown(f'<div style="text-align:right;font-size:12px;padding-top:5px">🏇　{selected_track}　 ⚑　{len(races)} Koşu　 ◷　İlk Koşu: {first_time}　 🏁　Son Koşu: {last_time}</div>',unsafe_allow_html=True)
+                st.markdown(
+                    f'<div style="text-align:right;font-size:12px;padding-top:5px">'
+                    f'🏇　{track}　 ⚑　{len(races)} Koşu　 ◷　İlk Koşu: {first_time}　 🏁　Son Koşu: {last_time}</div>',
+                    unsafe_allow_html=True
+                )
         if races:
-            selected=st.session_state.get("race_no",1)
-            race_cols=st.columns(len(races),gap="small")
-            for idx,col in enumerate(race_cols):
-                r=races[idx]
-                n=r["no"]
+            race_cols = st.columns(len(races), gap="small")
+            selected = st.session_state.get("race_no", 1)
+            for idx, col in enumerate(race_cols):
+                race_item = races[idx]
+                race_no = int(race_item.get("no") or race_item.get("race_number") or idx + 1)
                 with col:
-                    if st.button(f'{n}. Koşu\n{r.get("time","")}',key=f"tjk_race_{selected_date:%Y%m%d}_{selected_track}_{n}",use_container_width=True,type="primary" if selected==n else "secondary"):
-                        st.session_state.race_no=n
+                    if st.button(
+                        f'{race_no}. Koşu\n{race_item.get("time", "")}',
+                        key=f"tjk_race_{selected_date:%Y%m%d}_{track}_{race_no}",
+                        use_container_width=True,
+                        type="primary" if selected == race_no else "secondary"
+                    ):
+                        st.session_state.race_no = race_no
                         st.rerun()
         else:
-            st.info(f"{selected_track} için seçilen tarihte koşu bilgisi bulunamadı.")
+            st.info(f"{track} için seçilen tarihte koşu bilgisi bulunamadı.")
 
-    selected=st.session_state.get("race_no",1)
-    race=next((v for v in races if v["no"]==selected),None)
+    selected = st.session_state.get("race_no", 1)
+    race = next(
+        (r for r in races if int(r.get("no") or r.get("race_number") or 0) == int(selected)),
+        None
+    )
+
     if race is None:
         st.info("Seçilen hipodromda bu koşu bulunmuyor.")
     else:
-        detail = tjk_data.get("details", {}).get(f"{selected_track}|{selected}", {})
-        horses = detail.get("horses", [])
+        horses = race.get("horses", []) if isinstance(race.get("horses"), list) else []
+        meta = race.get("meta", {}) if isinstance(race.get("meta"), dict) else {}
+        distance = race.get("distance") or meta.get("distance") or "—"
+        surface = race.get("surface") or meta.get("surface") or "—"
+        race_name = race.get("name") or race.get("condition") or meta.get("raceName") or f"{selected}. KOŞU"
+
         with st.container(border=True):
-            p1,p2,p3,p4=st.columns([.55,1,1.7,1.6])
-            with p1: st.markdown(f'<div style="background:#005BB3;border-radius:10px;text-align:center;padding:12px 4px;font-weight:800">{race["no"]}. Koşu</div>',unsafe_allow_html=True)
-            with p2: st.markdown(f'<b>{selected_track}</b><br><span class="small-muted">Hipodromu</span>',unsafe_allow_html=True)
-            with p3: st.markdown(f'<b>{race.get("name") or str(race["no"])+". KOŞU"}</b><br><span class="small-muted">{race.get("class","")} / {race.get("age","")} / {race.get("distance","")} ({race.get("surface","")})</span>',unsafe_allow_html=True)
-            with p4: st.markdown(f'<div style="font-size:12px;text-align:right">◷ {race.get("time") or "—"}<br>Koşan At: {race.get("runners",len(horses))}<br>Ödül: {race.get("prize") or "—"}</div>',unsafe_allow_html=True)
-            tab=st.radio("Koşu detayları",["Koşu Bilgisi","Galoplar","Sabit Oranlar","Muhtemel Ganyan","Geçmiş Koşular"],horizontal=True,label_visibility="collapsed",key=f"race_detail_{selected_date:%Y%m%d}_{selected_track}_{selected}")
-            if tab=="Koşu Bilgisi": table(pd.DataFrame(horses),650)
-            elif tab=="Sabit Oranlar": table(pd.DataFrame(detail.get("fixed_odds",[])),650)
-            elif tab=="Muhtemel Ganyan": table(pd.DataFrame(detail.get("probable_odds",[])),650)
-            elif tab=="Geçmiş Koşular": table(pd.DataFrame(detail.get("past_runs",[])),650)
-            else: table(pd.DataFrame(detail.get("gallops",[])),650)
+            p1, p2, p3, p4 = st.columns([.55, 1, 1.7, 1.6])
+            with p1:
+                st.markdown(
+                    f'<div style="background:#005BB3;border-radius:10px;text-align:center;padding:12px 4px;font-weight:800">{selected}. Koşu</div>',
+                    unsafe_allow_html=True
+                )
+            with p2:
+                st.markdown(f'<b>{track}</b><br><span class="small-muted">Hipodromu</span>', unsafe_allow_html=True)
+            with p3:
+                st.markdown(
+                    f'<b>{race_name}</b><br><span class="small-muted">{race.get("class", meta.get("class", ""))} / '
+                    f'{race.get("age", meta.get("age", ""))} / {distance} ({surface})</span>',
+                    unsafe_allow_html=True
+                )
+            with p4:
+                st.markdown(
+                    f'<div style="font-size:12px;text-align:right">◷ {race.get("time") or "—"}<br>'
+                    f'Koşan At: {len(horses)}<br>Ödül: {race.get("prize") or "—"}</div>',
+                    unsafe_allow_html=True
+                )
+
+            tab = st.radio(
+                "Koşu detayları",
+                ["Koşu Bilgisi", "Galoplar", "Sabit Oranlar", "Muhtemel Ganyan", "Geçmiş Koşular"],
+                horizontal=True, label_visibility="collapsed",
+                key=f"race_detail_{selected_date:%Y%m%d}_{track}_{selected}"
+            )
+
+            if tab == "Koşu Bilgisi":
+                import html as _html
+                import re as _re
+
+                def _split_program_horse_name(horse):
+                    raw = str(horse.get("name") or horse.get("at_ismi") or "").strip()
+                    raw = _re.sub(r"\s*Image.*$", "", raw, flags=_re.I)
+                    number = str(horse.get("no") or horse.get("numara") or "").strip()
+                    if not number:
+                        nm = _re.search(r"\((\d{1,2})\)", raw)
+                        number = nm.group(1) if nm else ""
+                    equipment = str(horse.get("equipment") or horse.get("taki") or "").strip()
+                    if not equipment:
+                        tokens = _re.findall(r"(?i)\b(?:SKG|GKR|SGK|DB|KG|SK|K|G|D|B|H|TT|M)\b", raw)
+                        equipment = " ".join(x.upper() for x in tokens[:6])
+                    clean_name = _re.sub(r"\s*\(\d{1,2}\)", "", raw)
+                    clean_name = _re.sub(
+                        r"(?i)\s*(?:SKG|GKR|SGK|DB|KG|SK|K|G|D|B|H|TT|M)(?:\s+(?:SKG|GKR|SGK|DB|KG|SK|K|G|D|B|H|TT|M))*"
+                        r"(?:\s+(?:Ring|Kulaklık|Kulaklik|Kapalı|Kapali|Dilbağı|Dilbagi|Dilinin|Gözlük|Gozluk|Takı|Taki)\b.*)?$",
+                        "", clean_name, flags=_re.I
+                    ).strip()
+                    return clean_name or raw, number, equipment
+
+                display_rows = []
+                for i, h in enumerate(horses, 1):
+                    horse_name, horse_no, equipment = _split_program_horse_name(h)
+                    owner = str(h.get("owner") or h.get("sahip") or "").strip()
+                    trainer = str(h.get("trainer") or h.get("antrenor") or "").strip()
+                    display_rows.append({
+                        "No": horse_no or str(h.get("no") or i),
+                        "At İsmi": horse_name,
+                        "Yaş": h.get("age") or h.get("yas") or "",
+                        "Orijin (Baba-Anne)": h.get("origin") or h.get("orijin") or "",
+                        "Kilo": h.get("weight") or h.get("siklet") or "",
+                        "Jokey": h.get("jockey") or h.get("jokey") or "",
+                        "Sahip / Antrenör": "",
+                        "_owner": owner,
+                        "_trainer": trainer,
+                        "St": h.get("st") or "",
+                        "HP": h.get("hp") or "",
+                        "Son 6 Y.": h.get("form") or h.get("last6") or "",
+                        "KGS": h.get("kgs") or "",
+                        "s20": h.get("s20") or "",
+                        "EİD": h.get("bestTime") or "",
+                        "Gny": h.get("odds") or "",
+                        "AGF": h.get("agf") or "",
+                        "_equipment": equipment,
+                    })
+
+                headers = ["No", "At İsmi", "Yaş", "Orijin (Baba-Anne)", "Kilo", "Jokey",
+                           "Sahip / Antrenör", "St", "HP", "Son 6 Y.", "KGS", "s20", "EİD", "Gny", "AGF"]
+                widths = [4, 17, 7, 15, 5, 9, 12, 4, 4, 10, 4, 4, 7, 6, 6]
+                total_width = sum(widths)
+                colgroup = "".join(
+                    f'<col style="width:{w/total_width*100:.2f}%">' for w in widths
+                )
+                html_rows = []
+                for row in display_rows:
+                    cells = []
+                    for key in headers:
+                        value = str(row.get(key, "") or "—")
+                        safe = _html.escape(value)
+                        if key == "At İsmi":
+                            number = _html.escape(str(row.get("No", "")))
+                            gear = _html.escape(str(row.get("_equipment", "")))
+                            safe = (
+                                f'<span class="rp-horse-name">{safe}</span> '
+                                f'<span class="rp-horse-no">({number})</span> '
+                                f'<span class="rp-equipment">{gear}</span>'
+                            )
+                        elif key == "Orijin (Baba-Anne)":
+                            parts = [x.strip() for x in value.split("/", 1)]
+                            sire = _html.escape(parts[0] if parts else value)
+                            dam = _html.escape(parts[1] if len(parts) > 1 else "")
+                            safe = f'<span class="rp-origin-sire">{sire}</span>'
+                            if dam:
+                                safe += f'<br><span class="rp-origin-dam">{dam}</span>'
+                        elif key == "Jokey":
+                            safe = f'<span class="rp-jockey">{safe}</span>'
+                        elif key == "Sahip / Antrenör":
+                            owner = _html.escape(str(row.get("_owner", "")))
+                            trainer = _html.escape(str(row.get("_trainer", "")))
+                            safe = f'<span class="rp-owner">{owner}</span>'
+                            if trainer:
+                                safe += f'<br><span class="rp-trainer">{trainer}</span>'
+                        elif key == "Son 6 Y.":
+                            safe = _html.escape(value.replace(" ", ""))
+                        cells.append(f"<td>{safe}</td>")
+                    html_rows.append("<tr>" + "".join(cells) + "</tr>")
+
+                table_html = (
+                    '<div class="scroll-table race-program-scroll"><table class="data-table race-program-table">'
+                    f'<colgroup>{colgroup}</colgroup><thead><tr>'
+                    + "".join(f"<th>{_html.escape(h)}</th>" for h in headers)
+                    + "</tr></thead><tbody>"
+                    + "".join(html_rows)
+                    + "</tbody></table></div>"
+                )
+                st.markdown(table_html, unsafe_allow_html=True)
+
+            elif tab == "Sabit Oranlar":
+                table(pd.DataFrame([
+                    {"No": h.get("no"), "At Adı": h.get("name"), "Sabit Oran": h.get("fixedOdds") or h.get("fixed_odds") or ""}
+                    for h in horses
+                ]), 650)
+            elif tab == "Muhtemel Ganyan":
+                table(pd.DataFrame([
+                    {"No": h.get("no"), "At Adı": h.get("name"), "Muhtemel Ganyan": h.get("odds") or ""}
+                    for h in horses
+                ]), 650)
+            elif tab == "Geçmiş Koşular":
+                st.info("Geçmiş koşular, seçilen atın Yarış Analizi sayfasındaki TJK geçmiş kayıtlarından görüntülenebilir.")
+            else:
+                st.info("Galop verileri Yarış Analizi sayfasında TJK at kimliği üzerinden yüklenir.")
 
 elif st.session_state.page == "Yarış Analizi":
     from race_analysis_page import render as render_race_analysis
