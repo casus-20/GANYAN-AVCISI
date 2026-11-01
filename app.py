@@ -52,16 +52,16 @@ section[data-testid="stSidebar"] .stButton>button:hover{{background:#343d61!impo
 .data-table tr:hover td{{background:#dceaf4;color:#17212b}}
 .featured-table-wrap{{border:2px solid #062b55;border-radius:10px;padding:3px;box-shadow:0 0 0 1px #fff7,0 5px 14px #0005;overflow:auto}}
 .featured-table{{border:0!important;border-collapse:separate!important;border-spacing:0!important}}
-.featured-table th{{background:#005BB3!important;color:#fff!important;font-weight:900!important;text-transform:uppercase!important;border-bottom:2px solid #062b55!important}}
-.featured-table td{{color:#ffffff!important;font-weight:900!important;font-size:15px!important;text-transform:uppercase!important;border-bottom:1px solid #ffffff!important;padding:9px 6px!important}}
+.featured-table th{{background:#005BB3!important;color:#fff!important;font-size:11px!important;font-weight:900!important;text-transform:uppercase!important;border-bottom:2px solid #062b55!important;padding:6px 4px!important;overflow-wrap:normal!important;word-break:normal!important}}
+.featured-table td{{color:#ffffff!important;font-weight:900!important;font-size:13px!important;text-transform:uppercase!important;border-bottom:1px solid #ffffff!important;padding:9px 6px!important}}
 .featured-table tbody tr:nth-child(odd) td{{background:#555b64!important}}
 .featured-table tbody tr:nth-child(even) td{{background:#3b414a!important}}
-.featured-pill{{display:inline-block;min-width:42px;padding:4px 10px;border-radius:999px;font-size:14px;line-height:1.15;font-weight:900;text-align:center;white-space:nowrap;box-shadow:inset 0 0 0 1px #ffffff55}}
+.featured-pill{{display:inline-block;min-width:36px;padding:3px 7px;border-radius:999px;font-size:12px;line-height:1.15;font-weight:900;text-align:center;white-space:nowrap;box-shadow:inset 0 0 0 1px #ffffff55}}
 .featured-pill.agf{{background:#029456;color:#07150f}}
 .featured-pill.ganyan{{background:#D8226C;color:#fff}}
 .agf-summary-wrap{{border:1px solid #263d5b;border-radius:9px;padding:2px;overflow:auto}}
 .agf-summary-table th{{background:#005BB3!important;color:#fff!important;font-size:13px!important;font-weight:900!important;padding:8px 6px!important}}
-.agf-summary-table td{{font-size:15px!important;font-weight:900!important;padding:8px 6px!important;color:#ffffff!important}}
+.agf-summary-table td{{font-size:13px!important;font-weight:900!important;padding:8px 6px!important;color:#ffffff!important}}
 .agf-summary-table tbody tr:nth-child(odd) td{{background:#555b64!important}}
 .agf-summary-table tbody tr:nth-child(even) td{{background:#3b414a!important}}
 .agf-summary-table tbody tr td:nth-child(2){{color:#ffffff!important;font-weight:900!important}}
@@ -74,8 +74,8 @@ section[data-testid="stSidebar"] .stButton>button:hover{{background:#343d61!impo
 .race-results-table tbody tr:nth-child(even) td{{background:#3b414a!important}}
 .race-results-table td:nth-child(3){{font-size:16px!important;font-weight:900!important;letter-spacing:0!important;white-space:normal!important}}
 .race-results-table .featured-pill{{font-size:16px!important}}
-.race-results-table .result-ganyan{{display:inline-block;background:#D8226C;color:#fff;padding:4px 9px;border-radius:999px;font-weight:900;white-space:nowrap}}
-.race-results-table .result-agf{{display:inline-block;background:#fff;color:#005BB3;padding:4px 9px;border-radius:999px;font-weight:900;white-space:nowrap}}
+.race-results-table .result-ganyan{{display:inline-block;background:#D8226C;color:#fff;padding:3px 5px;border-radius:999px;font-size:10px;font-weight:900;white-space:nowrap}}
+.race-results-table .result-agf{{display:inline-block;background:#fff;color:#005BB3;padding:3px 5px;border-radius:999px;font-size:10px;font-weight:900;white-space:nowrap}}
 
 
 .data-table td:nth-child(2){{color:#c00018;font-weight:900}}
@@ -123,14 +123,14 @@ def table(df, height=300):
         return
     # Kolon bazlı genişlikler: dar sıra/no, geniş at adı ve orijin.
     width_map = {
-        "No": 4, "Sıra": 5, "At No": 5, "At İsmi": 17, "At Adı": 17,
+        "No": 5, "Sıra": 8, "At No": 6, "At İsmi": 18, "At Adı": 18,
         "Yaş": 7, "Yaş / Cins": 8, "Yaş/Cins": 8,
         "Orijin (Baba - Anne)": 17, "Orijin (Baba-Anne)": 17,
         "Kilo": 6, "Sıklet": 6, "Jokey": 10, "Sahip": 11,
         "Antrenör": 10, "Sahip / Antrenör": 14, "St.": 5, "HP": 5,
-        "Son 6 Y.": 9, "Son 6 Koşu": 18, "K / G / Y": 12, "KGS": 5, "s20": 5, "EİD": 7,
-        "Sabit Oran": 7, "Muhtemel Ganyan": 12, "AGF Oranı": 9, "AGF": 9,
-        "Ayak": 13, "Koşu": 13, "Kazanan At / Ganyan / AGF": 48,
+        "Son 6 Y.": 10, "Son 6 Koşu": 20, "K / G / Y": 12, "KGS": 5, "s20": 5, "EİD": 7,
+        "Sabit Oran": 7, "Muhtemel Ganyan": 20, "AGF Oranı": 9, "AGF": 11,
+        "Ayak": 12, "Koşu": 13, "Kazanan At / Ganyan / AGF": 48,
         "Bitiş Derecesi": 18, "B. Derece": 18,
     }
     widths = [width_map.get(str(c), max(7, 80 // max(1, len(df.columns)))) for c in df.columns]
