@@ -106,10 +106,10 @@ def _tjk_city_links(html,base_url):
     found={}
     for a in soup.find_all("a",href=True):
         href=a.get("href","")
-        if "SehirAdi" not in href or "SehirId" not in href: continue
+        if not re.search(r"SehirAdi|sehirAdi|Sehir=", href, re.I): continue
         full=urljoin(base_url,href)
         query=parse_qs(urlparse(full).query)
-        city=(query.get("SehirAdi") or [""])[0].strip()
+        city=(query.get("SehirAdi") or query.get("sehirAdi") or query.get("Sehir") or [""])[0].strip()
         if not city: continue
         label=re.sub(r"\s*\([^)]*\)\s*","",_tjk_cell_text(a)).strip() or city
         if label.lower() not in {"karma"}: found[label]=full
@@ -157,10 +157,10 @@ def _tjk_parse_horse_tables(html):
             name=rowmap.get("atisimi") or rowmap.get("atismi") or rowmap.get("atadi")
             if not name or _tjk_norm(name) in {"atisimi","atismi","atadi"}: continue
             horses.append(rowmap)
-        if horses: tables.append((table,horses))
+        if horses: tables.append((table,horses,hidx))
 
     result={}
-    for idx,(table,rows) in enumerate(tables,1):
+    for idx,(table,rows,header_index) in enumerate(tables,1):
         no=idx
         meta.setdefault(no,{"no":no,"time":"","name":"","class":"","age":"","distance":"","surface":"","prize":""})
         horses=[]
@@ -197,7 +197,7 @@ def get_tjk_race_program(date_text):
     """TJK resmi Günlük Yarış Programı sayfasından DD/MM/YYYY tarihli programı alır."""
     import requests
     from urllib.parse import urljoin
-    base="https://www.tjk.org/TR/Yetistiricilik/Info/Page/GunlukYarisProgrami"
+    base="https://www.tjk.org/TR/kurumsal/Info/Page/GunlukYarisProgrami"
     session=requests.Session()
     session.headers.update({"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36","Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8","Accept-Language":"tr-TR,tr;q=0.9,en-US;q=0.7","Referer":"https://www.tjk.org/"})
     response=session.get(base,params={"QueryParameter_Tarih":date_text},timeout=30); response.raise_for_status()
