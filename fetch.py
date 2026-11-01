@@ -106,7 +106,9 @@ def _tjk_city_links(html,base_url):
     found={}
     for a in soup.find_all("a",href=True):
         href=a.get("href","")
-        if not re.search(r"SehirAdi|sehirAdi|Sehir=", href, re.I): continue
+        # TJK bağlantılarında SehirId bazı sayfa sürümlerinde bulunmayabilir.
+        if not re.search(r"SehirAdi|sehirAdi|Sehir=", href, re.I):
+            continue
         full=urljoin(base_url,href)
         query=parse_qs(urlparse(full).query)
         city=(query.get("SehirAdi") or query.get("sehirAdi") or query.get("Sehir") or [""])[0].strip()
@@ -160,7 +162,7 @@ def _tjk_parse_horse_tables(html):
         if horses: tables.append((table,horses,hidx))
 
     result={}
-    for idx,(table,rows,header_index) in enumerate(tables,1):
+    for idx,(table,rows,table_header_index) in enumerate(tables,1):
         no=idx
         meta.setdefault(no,{"no":no,"time":"","name":"","class":"","age":"","distance":"","surface":"","prize":""})
         horses=[]
@@ -168,7 +170,7 @@ def _tjk_parse_horse_tables(html):
         for row_index, row in enumerate(rows):
             def v(*keys):
                 return next((row[k] for k in keys if row.get(k)),"")
-            source_cells = source_rows[hidx + 1 + row_index].find_all(["td", "th"], recursive=False) if hidx + 1 + row_index < len(source_rows) else []
+            source_cells = source_rows[table_header_index + 1 + row_index].find_all(["td", "th"], recursive=False) if table_header_index + 1 + row_index < len(source_rows) else []
             at_id = ""
             for cell in source_cells:
                 for anchor in cell.find_all("a", href=True):
@@ -197,7 +199,7 @@ def get_tjk_race_program(date_text):
     """TJK resmi Günlük Yarış Programı sayfasından DD/MM/YYYY tarihli programı alır."""
     import requests
     from urllib.parse import urljoin
-    base="https://www.tjk.org/TR/kurumsal/Info/Page/GunlukYarisProgrami"
+    base="https://www.tjk.org/TR/Kurumsal/Info/Page/GunlukYarisProgrami"
     session=requests.Session()
     session.headers.update({"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36","Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8","Accept-Language":"tr-TR,tr;q=0.9,en-US;q=0.7","Referer":"https://www.tjk.org/"})
     response=session.get(base,params={"QueryParameter_Tarih":date_text},timeout=30); response.raise_for_status()
@@ -267,3 +269,67 @@ def get_tjk_horse_history(at_id):
     if not at_id:
         return []
     return _cached_tjk_horse_history(str(at_id))
+
+
+# Yarış Programı sayfası için fetch.py veri adaptörleri.
+def get_tjk_active_cities(date_value):
+    from datetime import datetime, date
+    if isinstance(date_value, (datetime, date)):
+        date_text = date_value.strftime("%d/%m/%Y")
+    else:
+        raw = str(date_value or "").strip()
+        try:
+            date_text = datetime.strptime(raw[:10], "%Y-%m-%d").strftime("%d/%m/%Y")
+        except ValueError:
+            date_text = raw
+    data = get_tjk_race_program(date_text)
+    return list(data.get("tracks") or [])
+
+def get_tjk_program(date_value, city):
+    from datetime import datetime, date
+    if isinstance(date_value, (datetime, date)):
+        date_text = date_value.strftime("%d/%m/%Y")
+        iso_date = date_value.strftime("%Y-%m-%d")
+    else:
+        raw = str(date_value or "").strip()
+        try:
+            parsed_date = datetime.strptime(raw[:10], "%Y-%m-%d")
+        except ValueError:
+            parsed_date = datetime.strptime(raw, "%d/%m/%Y")
+        date_text = parsed_date.strftime("%d/%m/%Y")
+        iso_date = parsed_date.strftime("%Y-%m-%d")
+    data = get_tjk_race_program(date_text)
+    tracks = data.get("tracks") or []
+    actual_city = next((x for x in tracks if _tjk_norm(x) == _tjk_norm(city)), None)
+    if not actual_city:
+        raise RuntimeError(f"TJK {date_text} tarihinde {city} için yarış programı döndürmedi.")
+    races = []
+    for race_meta in (data.get("races_by_track") or {}).get(actual_city, []):
+        no = int(race_meta.get("no") or 0)
+        detail = (data.get("details") or {}).get(f"{actual_city}|{no}", {})
+        horses = []
+        for h in detail.get("horses", []):
+            horses.append({
+                "no": h.get("Sıra") or "",
+                "name": h.get("At Adı") or "",
+                "age": h.get("Yaş / Cins") or "",
+                "origin": h.get("Orijin (Baba - Anne)") or "",
+                "weight": h.get("Sıklet") or "",
+                "jockey": h.get("Jokey") or "", "owner": h.get("Sahip") or "",
+                "trainer": h.get("Antrenör") or "", "st": h.get("St.") or "",
+                "hp": h.get("HP") or "", "last6": h.get("Son 6 Y.") or "",
+                "kgs": h.get("KGS") or "", "bestTime": h.get("EİD") or "",
+                "odds": h.get("Muhtemel Ganyan") or h.get("Sabit Oran") or "", "agf": "",
+                "atId": h.get("_at_id") or "",
+            })
+        races.append({
+            "no": no, "time": race_meta.get("time") or "", "name": race_meta.get("name") or f"{no}. Koşu",
+            "class": race_meta.get("class") or "", "age": race_meta.get("age") or "",
+            "distance": race_meta.get("distance") or "", "surface": race_meta.get("surface") or "",
+            "prize": race_meta.get("prize") or "", "horses": horses,
+        })
+    if not races:
+        raise RuntimeError(f"TJK {actual_city} programı bulundu ancak koşu/at tablosu ayrıştırılamadı.")
+    return {"ok": True, "date": iso_date, "city": actual_city, "races": races,
+            "raceCount": len(races), "horseCount": sum(len(x["horses"]) for x in races),
+            "source": "TJK resmi günlük yarış programı"}
