@@ -134,7 +134,12 @@ def _tjk_parse_horse_tables(html):
     for i,m in enumerate(matches):
         no=int(m.group(1)); stop=matches[i+1].start() if i+1<len(matches) else min(len(page_text),m.end()+5000)
         chunk=page_text[m.start():stop]; lines=[x.strip() for x in chunk.splitlines() if x.strip()]
-        tm=re.search(r"\b(?:[01]?\d|2[0-3]):[0-5]\d\b",chunk)
+        # Saat bazı TJK sayfalarında koşu başlığından hemen önceki satırda bulunur.
+        prefix_start = matches[i-1].end() if i > 0 else max(0, m.start()-240)
+        prefix = page_text[prefix_start:m.start()]
+        time_scope = prefix + "\\n" + chunk
+        time_matches = list(re.finditer(r"(?<!\\d)(?:[01]?\\d|2[0-3]):[0-5]\\d(?!\\d)", time_scope))
+        tm = time_matches[-1] if time_matches else None
         dist=re.search(r"\b(\d{3,4})\s*(?:m|metre)\b",chunk,re.I)
         surf=re.search(r"\b(Çim|Kum|Sentetik)\b",chunk,re.I)
         prize=re.search(r"(?:₺\s*)?(\d{1,3}(?:\.\d{3})+(?:,\d{2})?)\s*(?:₺|TL)",chunk,re.I)
