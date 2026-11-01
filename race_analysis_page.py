@@ -1649,6 +1649,19 @@ def render():
         def _parse_date(value: Any):
             return _rating_parse_date(value) if value not in (None, "", "-") else None
 
+        def _fold_city(value: Any) -> str:
+            """Şehir karşılaştırması için Türkçe karakterleri sadeleştirir.
+
+            _fold_tr tjk_fetch modülünün iç fonksiyonudur; bu sayfanın
+            kapsamına aktarılmadığından burada bağımsız ve güvenli biçimde
+            normalize edilir.
+            """
+            text = str(value or "").strip().casefold()
+            return text.translate(str.maketrans({
+                "ı": "i", "İ": "i", "ş": "s", "ğ": "g",
+                "ü": "u", "ö": "o", "ç": "c",
+            }))
+
         target_dt = _parse_date(target_date or race.get("date") or race.get("tarih") or race.get("Tarih"))
         horse_no = str(get_horse_number(horse, horse_index + 1)).strip()
         horse_id = str(horse.get("atId") or horse.get("at_id") or horse.get("id") or "").strip()
@@ -1698,11 +1711,11 @@ def render():
                     same_day.append((row, pos))
 
             if same_day:
-                target_city = _fold_tr(str(target_city_name or race.get("city") or race.get("hipodrom") or ""))
+                target_city = _fold_city(target_city_name or race.get("city") or race.get("hipodrom") or "")
                 target_distance = re.sub(r"\D", "", str(race.get("distance") or race.get("mesafe") or ""))
                 target_surface = _normalize_surface_for_table(race.get("surface") or race.get("pist") or "")
                 for row, pos in same_day:
-                    row_city = _fold_tr(str(_rating_row_value(row, ["city", "şehir", "sehir", "hipodrom"]) or ""))
+                    row_city = _fold_city(_rating_row_value(row, ["city", "şehir", "sehir", "hipodrom"]) or "")
                     row_distance = re.sub(r"\D", "", str(_rating_row_value(row, ["distance", "mesafe", "msf"]) or ""))
                     row_surface = _normalize_surface_for_table(_rating_row_value(row, ["surface", "pist", "zemin"]))
                     city_ok = not target_city or not row_city or target_city in row_city or row_city in target_city
