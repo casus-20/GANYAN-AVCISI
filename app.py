@@ -3,7 +3,7 @@ import base64
 import re
 import streamlit as st
 import pandas as pd
-from fetch import get_dashboard_data, get_race_program_data, get_race_detail
+from fetch import get_dashboard_data, get_tjk_race_program
 
 BASE = Path(__file__).parent
 
@@ -370,42 +370,81 @@ elif st.session_state.page == "Yarış Programı":
     f1,f2=st.columns([1.1,1.2],gap="small")
     with f1:
         with st.container(border=True):
-            selected_date=st.date_input("Tarih",value=pd.Timestamp.today().date(),format="DD.MM.YYYY")
+            selected_date=st.date_input("Tarih",value=pd.Timestamp.today().date(),format="DD.MM.YYYY",key="tjk_program_date")
+    @st.cache_data(ttl=300, show_spinner=False)
+    def _cached_tjk_program(date_text):
+        return get_tjk_race_program(date_text)
+
+    with st.spinner("Seçilen tarihin TJK yarış programı yükleniyor..."):
+        try:
+            tjk_data = _cached_tjk_program(selected_date.strftime("%d/%m/%Y"))
+        except Exception as exc:
+            st.error("TJK yarış programı alınamadı. Biraz sonra tekrar deneyin.")
+            st.caption(f"Bağlantı ayrıntısı: {type(exc).__name__}: {exc}")
+            st.stop()
+
+    tracks = tjk_data.get("tracks", [])
+    if not tracks:
+        st.warning(f"{selected_date.strftime('%d.%m.%Y')} tarihinde TJK günlük programında hipodrom bulunamadı.")
+        st.stop()
+
+    track_options = tracks
+    previous_track = st.session_state.get("tjk_selected_track")
+    default_track = previous_track if previous_track in track_options else tracks[0]
+    if st.session_state.get("tjk_track_select") not in track_options:
+        st.session_state["tjk_track_select"] = default_track
     with f2:
         with st.container(border=True):
-            track=st.selectbox("Hipodrom",["Tümü (3 Hipodrom)","İstanbul","Ankara","İzmir"])
-    races=get_race_program_data()
-    if track!="Tümü (3 Hipodrom)": races=[r for r in races if r["track"]==track]
+            track=st.selectbox("Hipodrom",track_options,index=track_options.index(default_track),key="tjk_track_select")
+    selected_track = track
+    if st.session_state.get("_tjk_program_context") != (selected_date.isoformat(), selected_track):
+        st.session_state["_tjk_program_context"] = (selected_date.isoformat(), selected_track)
+        st.session_state["race_no"] = 1
+    st.session_state["tjk_selected_track"] = track
+
+    races = tjk_data.get("races_by_track", {}).get(selected_track, [])
     with st.container(border=True):
         x,y=st.columns([1,1.7])
         with x: title("▦","Günün Yarış Programı",f"({track})")
-        with y: st.markdown('<div style="text-align:right;font-size:12px;padding-top:5px">🏇　İstanbul　 ⚑　10 Koşu　 ◷　İlk Koşu: 13:00　 🏁　Son Koşu: 18:00</div>',unsafe_allow_html=True)
-        selected=st.session_state.get("race_no",1)
-        race_cols=st.columns(10,gap="small")
-        for n,col in enumerate(race_cols,1):
-            r=next((v for v in races if v["no"]==n),None)
-            if r:
+        with y:
+            if races:
+                times = [r.get("time") for r in races if r.get("time")]
+                first_time = times[0] if times else "—"
+                last_time = times[-1] if times else "—"
+                st.markdown(f'<div style="text-align:right;font-size:12px;padding-top:5px">🏇　{selected_track}　 ⚑　{len(races)} Koşu　 ◷　İlk Koşu: {first_time}　 🏁　Son Koşu: {last_time}</div>',unsafe_allow_html=True)
+        if races:
+            selected=st.session_state.get("race_no",1)
+            race_cols=st.columns(len(races),gap="small")
+            for idx,col in enumerate(race_cols):
+                r=races[idx]
+                n=r["no"]
                 with col:
-                    if st.button(f'{n}. Koşu\n{r["time"]}',key=f"race_{n}",use_container_width=True,type="primary" if selected==n else "secondary"):
-                        st.session_state.race_no=n; st.rerun()
-    race=next((r for r in races if r["no"]==selected),None)
-    if race is None: st.info("Seçilen hipodromda bu koşu bulunmuyor.")
+                    if st.button(f'{n}. Koşu\n{r.get("time","")}',key=f"tjk_race_{selected_date:%Y%m%d}_{selected_track}_{n}",use_container_width=True,type="primary" if selected==n else "secondary"):
+                        st.session_state.race_no=n
+                        st.rerun()
+        else:
+            st.info(f"{selected_track} için seçilen tarihte koşu bilgisi bulunamadı.")
+
+    selected=st.session_state.get("race_no",1)
+    race=next((v for v in races if v["no"]==selected),None)
+    if race is None:
+        st.info("Seçilen hipodromda bu koşu bulunmuyor.")
     else:
-        detail=get_race_detail(selected)
+        detail = tjk_data.get("details", {}).get(f"{selected_track}|{selected}", {})
+        horses = detail.get("horses", [])
         with st.container(border=True):
             p1,p2,p3,p4=st.columns([.55,1,1.7,1.6])
             with p1: st.markdown(f'<div style="background:#005BB3;border-radius:10px;text-align:center;padding:12px 4px;font-weight:800">{race["no"]}. Koşu</div>',unsafe_allow_html=True)
-            with p2: st.markdown(f'<b>{race["track"]}</b><br><span class="small-muted">Hipodromu</span>',unsafe_allow_html=True)
-            with p3: st.markdown(f'<b>{race["name"]}</b><br><span class="small-muted">{race["class"]} / {race["age"]} / {race["distance"]} ({race["surface"]})</span>',unsafe_allow_html=True)
-            with p4: st.markdown(f'<div style="font-size:12px;text-align:right">◷ {race["time"]}<br>Koşan At: {race["runners"]}<br>Ödül: {race["prize"]}</div>',unsafe_allow_html=True)
-            tab=st.radio("Koşu detayları",["Koşu Bilgisi","Galoplar","Sabit Oranlar","Muhtemel Ganyan","Geçmiş Koşular"],horizontal=True,label_visibility="collapsed",key=f"race_detail_{selected}")
-            # Sağdaki Koşu Bilgileri ve Geçmiş Koşular kartları kaldırıldı.
-            # Ana yarış tablosu kullanılabilir genişliğin tamamını kaplar.
-            if tab=="Koşu Bilgisi": table(pd.DataFrame(detail["horses"]),650)
-            elif tab=="Sabit Oranlar": table(pd.DataFrame(detail["fixed_odds"]),650)
-            elif tab=="Muhtemel Ganyan": table(pd.DataFrame(detail["probable_odds"]),650)
-            elif tab=="Geçmiş Koşular": table(pd.DataFrame(detail["past_runs"]),650)
-            else: table(pd.DataFrame(detail["gallops"]),650)
+            with p2: st.markdown(f'<b>{selected_track}</b><br><span class="small-muted">Hipodromu</span>',unsafe_allow_html=True)
+            with p3: st.markdown(f'<b>{race.get("name") or str(race["no"])+". KOŞU"}</b><br><span class="small-muted">{race.get("class","")} / {race.get("age","")} / {race.get("distance","")} ({race.get("surface","")})</span>',unsafe_allow_html=True)
+            with p4: st.markdown(f'<div style="font-size:12px;text-align:right">◷ {race.get("time") or "—"}<br>Koşan At: {race.get("runners",len(horses))}<br>Ödül: {race.get("prize") or "—"}</div>',unsafe_allow_html=True)
+            tab=st.radio("Koşu detayları",["Koşu Bilgisi","Galoplar","Sabit Oranlar","Muhtemel Ganyan","Geçmiş Koşular"],horizontal=True,label_visibility="collapsed",key=f"race_detail_{selected_date:%Y%m%d}_{selected_track}_{selected}")
+            if tab=="Koşu Bilgisi": table(pd.DataFrame(horses),650)
+            elif tab=="Sabit Oranlar": table(pd.DataFrame(detail.get("fixed_odds",[])),650)
+            elif tab=="Muhtemel Ganyan": table(pd.DataFrame(detail.get("probable_odds",[])),650)
+            elif tab=="Geçmiş Koşular": table(pd.DataFrame(detail.get("past_runs",[])),650)
+            else: table(pd.DataFrame(detail.get("gallops",[])),650)
+
 else:
     hero()
     with st.container(border=True): st.info(f"{st.session_state.page} sayfası sonraki geliştirme aşamasında hazırlanacaktır.")
