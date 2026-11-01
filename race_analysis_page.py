@@ -3453,52 +3453,40 @@ def render():
 
 
     # ============================================================
-    # SIDEBAR
+    # TARİH / HİPODROM / PROGRAM GETİR
     # ============================================================
 
-    # Tarih ve hipodrom aynı satırda seçilir.
-    # Gün değiştiğinde önceki Streamlit widget state'inin (örn. 12/09)
-    # yeni günü (örn. 13/09) kilitlemesini engelle. Kullanıcı aynı gün
-    # farklı bir tarih seçerse seçimi korunur; yalnızca takvim günü değiştiğinde
-    # otomatik olarak bugüne geçilir.
     try:
         from zoneinfo import ZoneInfo
         _today = datetime.now(ZoneInfo("Europe/Istanbul")).date()
     except Exception:
         _today = date.today()
+
     if st.session_state.get("_date_auto_sync_day") != _today:
         st.session_state["selected_date_widget"] = _today
         st.session_state["_date_auto_sync_day"] = _today
 
-    date_col, city_col = st.columns([1, 1], gap="medium")
+    date_col, city_col, action_col = st.columns([1, 1, 0.42], gap="medium")
+
     with date_col:
         selected_date = st.date_input(
             "Tarih",
             key="selected_date_widget",
         )
 
-
-    # ============================================================
-    # HİPODROM
-    # ============================================================
-
-    with st.container():
-        with st.spinner("TJK'daki aktif hipodromlar kontrol ediliyor..."):
+    # Hipodrom listesi, programı olan şehirler bulunamasa bile seçilebilir kalır.
+    # Böylece kullanıcı tarih + hipodrom seçip PROGRAMI GETİR ile TJK sorgusunu başlatabilir.
+    try:
+        with st.spinner("TJK hipodrom listesi kontrol ediliyor..."):
             active_cities = load_active_cities(selected_date)
+    except Exception:
+        active_cities = []
 
     if not active_cities:
-        st.warning(
-            f"{selected_date.strftime('%d/%m/%Y')} tarihinde TJK'dan yarış programı olan hipodrom bulunamadı."
-        )
-        st.info(
-            "Bu tarih için hipodrom listesi alınamadı. TJK doğrudan bağlantısını kontrol edin."
-        )
-        st.stop()
+        active_cities = ALL_CITIES
 
     if st.session_state.loaded_city in active_cities:
-        default_city_index = active_cities.index(
-            st.session_state.loaded_city
-        )
+        default_city_index = active_cities.index(st.session_state.loaded_city)
     else:
         default_city_index = 0
 
@@ -3507,53 +3495,36 @@ def render():
             "Hipodrom",
             active_cities,
             index=default_city_index,
+            key="analysis_hippodrome_select",
         )
 
-    # ============================================================
-    # PROGRAMI GETİR
-    # ============================================================
-
-    get_program_clicked = st.button(
-        "📥 PROGRAMI GETİR",
-        key="program_get_button",
-        use_container_width=True,
-    )
-
-    # Program özeti, program verisi alındıktan sonra sol panelde gösterilir.
+    with action_col:
+        st.markdown("<div style='height:27px'></div>", unsafe_allow_html=True)
+        get_program_clicked = st.button(
+            "📥 PROGRAM GETİR",
+            key="analysis_program_get_button",
+            use_container_width=True,
+            type="primary",
+        )
 
     if get_program_clicked:
-
-        # Önce eski programı temizle
         st.session_state.program_data = None
-
         st.session_state.loaded_date = None
         st.session_state.loaded_city = None
-
         try:
-
             result = fetch_program_with_status(
                 selected_date,
                 selected_city,
                 "PROGRAM GETİR",
             )
-
             st.session_state.program_data = result
             st.session_state.loaded_date = selected_date
             st.session_state.loaded_city = selected_city
             st.session_state.selected_race = 1
-
         except Exception as exc:
-
-            st.error(
-                "Program alınırken hata oluştu."
-            )
-
-            st.code(
-                f"{type(exc).__name__}: {exc}"
-            )
-
+            st.error("TJK yarış programı alınırken hata oluştu.")
+            st.code(f"{type(exc).__name__}: {exc}")
             st.stop()
-
 
     # ============================================================
     # OTOMATİK PROGRAM YÜKLE
