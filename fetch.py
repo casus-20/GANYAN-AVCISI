@@ -156,11 +156,24 @@ def _tjk_parse_horse_tables(html):
     # TJK programında eküri bilgisi çoğunlukla tablonun altında
     # [(1)AT ADI,(5)DİĞER AT] eküridir. biçiminde yayımlanır.
     ekuri_names = set()
-    for group in re.findall(r"\[([^\]]+)\]\s*ek[uü]r[iı]dir", page_text, flags=re.I):
-        for entry in re.split(r"\s*,\s*", group):
-            entry = re.sub(r"^\(?\d+\)?\s*", "", entry).strip(" ()")
-            if entry:
-                ekuri_names.add(_tjk_norm(entry))
+    ekuri_program_nos = set()
+    # TJK footer may contain multiple adjacent ekuri groups:
+    # [(1)HORSE A,(10)HORSE B],[(14)HORSE C,(16)HORSE D] eküridir.
+    # The number in this footer is the table's N/program-row number, NOT
+    # the horse's saddlecloth number shown in parentheses after its name.
+    ekuri_blocks = re.findall(
+        r"((?:\[[^\]]+\]\s*,?\s*)+)ek[uü]r[iı]dir",
+        page_text, flags=re.I
+    )
+    for block in ekuri_blocks:
+        for group in re.findall(r"\[([^\]]+)\]", block):
+            for entry in re.split(r"\s*,\s*", group):
+                number_match = re.match(r"\s*\(?\s*(\d{1,2})\s*\)?\s*(.*)$", entry)
+                if number_match:
+                    ekuri_program_nos.add(number_match.group(1))
+                    entry_name = number_match.group(2).strip(" ()")
+                    if entry_name:
+                        ekuri_names.add(_tjk_norm(entry_name))
 
     tables=[]
     for table in soup.find_all("table"):
@@ -223,14 +236,15 @@ def _tjk_parse_horse_tables(html):
             clean_horse_name = re.sub(r"\s*\(\s*ko[sş]maz\s*\)", "", raw_horse_name, flags=re.I).strip()
             name_for_ekuri = re.sub(r"\s*\(\d{1,2}\)", "", clean_horse_name)
             name_for_ekuri = re.sub(r"\s*image\s*$", "", name_for_ekuri, flags=re.I).strip()
-            # TJK at isminden sonra ekipman kodları (DB, SK, KG vb.)
-            # ekleyebilir. Eküri dipnotunda bu kodlar bulunmadığı için
-            # isim karşılaştırmasından önce yalnızca sondaki kodları temizle.
-            name_for_ekuri = re.sub(
-                r"\s+(?:(?:DB|SK|KG|K|G|SG|GKR|D|YP|KGK|SKG)\s*)+$",
-                "", name_for_ekuri, flags=re.I
-            ).strip()
-            is_ekuri = _tjk_norm(name_for_ekuri) in ekuri_names
+            # Prefer TJK's explicit N value from the ekuri footer. This is
+            # stable even when horse-name cells contain equipment abbreviations
+            # or saddlecloth numbers differ from the footer's row number.
+            program_no = re.sub(r"\D", "", str(v("n", "sira", "forma") or ""))
+            is_ekuri = (
+                program_no in ekuri_program_nos
+                if program_no and ekuri_program_nos
+                else _tjk_norm(name_for_ekuri) in ekuri_names
+            )
             horses.append({
                 "_at_id": at_id,
                 "Koşmaz": status_is_nonrunner,
