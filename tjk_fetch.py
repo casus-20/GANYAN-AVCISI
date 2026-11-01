@@ -482,17 +482,52 @@ def _fetch_tjk_daily(date_value, city, timeout=45):
             raise RuntimeError("TJK yanıt URL'sinde seçilen hipodrom kimliği doğrulanamadı.")
 
         page_text = _html_text(response.text or "")
-        date_tokens = re.findall(r"\b\d{1,2}[./]\d{1,2}[./]20\d{2}\b", page_text)
         page_dates = set()
+
+        # 1) Sayfa içindeki sayısal tarihler (DD/MM/YYYY ve YYYY-MM-DD).
+        date_tokens = re.findall(
+            r"\b(?:\d{1,2}[./]\d{1,2}[./]20\d{2}|20\d{2}-\d{2}-\d{2})\b",
+            page_text,
+        )
         for token in date_tokens:
             try:
                 page_dates.add(normalize_date(token.replace(".", "/")))
             except Exception:
                 pass
-        if iso not in page_dates:
+
+        # 2) TJK sayfalarında program tarihi bazen '2 Kasım 2026' biçiminde yazılır.
+        month_map = {
+            "ocak": 1, "subat": 2, "mart": 3, "nisan": 4,
+            "mayis": 5, "haziran": 6, "temmuz": 7, "agustos": 8,
+            "eylul": 9, "ekim": 10, "kasim": 11, "aralik": 12,
+        }
+        for match in re.finditer(r"\b(\d{1,2})\s+([A-Za-zÇĞİÖŞÜçğıöşü]+)\s+(20\d{2})\b", page_text, re.I):
+            month_name = _fold_tr(match.group(2))
+            month_number = month_map.get(month_name)
+            if month_number:
+                try:
+                    page_dates.add(date(int(match.group(3)), month_number, int(match.group(1))).isoformat())
+                except ValueError:
+                    pass
+
+        # 3) TJK seçilen program tarihini URL sorgusunda koruyorsa bunu da doğrula.
+        # URL'deki tarih yalnızca şehir sayfası ve gerçek koşu tabloları da doğrulanınca kabul edilir.
+        response_date_values = []
+        for key, value in parse_qsl(response_parts.query, keep_blank_values=True):
+            if key.lower() in ("queryparameter_tarih", "tarih", "date") and value:
+                response_date_values.append(value)
+        response_dates = set()
+        for value in response_date_values:
+            try:
+                response_dates.add(normalize_date(value))
+            except Exception:
+                pass
+
+        if iso not in page_dates and iso not in response_dates:
             raise RuntimeError(
                 f"TJK yanıtında seçilen tarih doğrulanamadı ({dmy}); "
                 f"sayfada bulunan tarihler: {', '.join(sorted(page_dates)) or 'yok'}. "
+                f"URL tarihleri: {', '.join(sorted(response_dates)) or 'yok'}. "
                 "Yanlış tarih verisi engellendi."
             )
 
