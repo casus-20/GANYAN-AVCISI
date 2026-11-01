@@ -88,6 +88,24 @@ section[data-testid="stSidebar"] .stButton>button:hover{{background:#343d61!impo
 .race-results-table .result-agf{{display:inline-block;background:#fff;color:#005BB3;padding:3px 5px;border-radius:999px;font-size:10px;font-weight:900;white-space:nowrap}}
 
 
+/* Yarış Programı - referans görseldeki açık gri/pembe tablo görünümü */
+.race-program-table{{width:100%!important;min-width:0!important;table-layout:fixed!important;border-collapse:collapse!important;background:#f1f1ef!important;color:#111!important;font-size:10px!important;font-weight:900!important;text-transform:uppercase!important}}
+.race-program-table th{{background:#30343b!important;color:#fff!important;font-size:9px!important;font-weight:900!important;padding:6px 4px!important;text-align:left!important;border-right:1px solid #59616a!important;white-space:nowrap!important}}
+.race-program-table td{{padding:7px 5px!important;border-bottom:1px solid #c9cdd2!important;color:#111!important;font-size:10px!important;font-weight:900!important;line-height:1.18!important;overflow-wrap:anywhere!important;vertical-align:middle!important}}
+.race-program-table tbody tr:nth-child(odd) td{{background:#e7e7e5!important}}
+.race-program-table tbody tr:nth-child(even) td{{background:#f4dedd!important}}
+.race-program-table tbody tr:hover td{{background:#dceaf4!important}}
+.race-program-table tbody td:nth-child(1){{text-align:center!important;color:#111!important}}
+.race-program-table tbody td:nth-child(2){{color:#c00018!important;font-weight:900!important}}
+.race-program-table tbody td:nth-child(4){{color:#005bb3!important;font-weight:900!important}}
+.race-program-table tbody td:nth-child(6){{color:#029456!important;font-weight:900!important}}
+.race-program-table tbody td:nth-child(7),.race-program-table tbody td:nth-child(8){{color:#005bb3!important;font-weight:900!important}}
+.race-program-table tbody td:nth-child(10){{color:#e00016!important;font-weight:900!important}}
+.race-program-table tbody td:nth-child(12){{color:#f07800!important;font-weight:900!important}}
+.race-program-table tbody td:nth-child(13){{color:#e00016!important;font-weight:900!important}}
+.race-program-table tbody td:nth-child(15){{color:#0795a5!important;font-weight:900!important}}
+.race-program-table .scroll-table{{overflow-x:auto!important;overflow-y:auto!important}}
+
 .data-table td:nth-child(2){{color:#c00018;font-weight:900}}
 .data-table td:nth-child(4){{color:#005BB3;font-weight:900}}
 .data-table td:nth-child(6),.data-table td:nth-child(7),.data-table td:nth-child(8){{color:#029456;font-weight:900}}
@@ -195,6 +213,15 @@ def table(df, height=300):
     is_featured = {"Son 6 Koşu", "Koşu", "AGF", "Muhtemel Ganyan"}.issubset(columns_set)
     is_agf_summary = {"Sıra", "At Adı", "AGF Oranı"}.issubset(columns_set)
     is_race_results = {"Ayak", "Koşu", "At Adı", "Ganyan", "AGF", "B. Derece"}.issubset(columns_set)
+    is_race_program = {"At Adı", "Yaş / Cins", "Jokey", "HP", "KGS"}.issubset(columns_set)
+    if is_race_program:
+        race_widths = {"Sıra":5, "At Adı":19, "Yaş / Cins":7, "Orijin (Baba - Anne)":17,
+                       "Orijin (Baba-Anne)":17, "Sıklet":6, "Kilo":6, "Jokey":10,
+                       "Sahip":11, "Antrenör":10, "St.":5, "HP":5, "Son 6 Y.":10,
+                       "KGS":5, "EİD":7, "Sabit Oran":7, "Muhtemel Ganyan":8}
+        widths = [race_widths.get(str(c), 7) for c in view.columns]
+        total = sum(widths)
+        colgroup = "<colgroup>" + "".join(f'<col style="width:{w/total*100:.2f}%">' for w in widths) + "</colgroup>"
     if is_race_results:
         # Önceki ölçülere göre: At Adı %15 daraltıldı, AGF %5 daraltıldı,
         # B. Derece alanı genişletildi. Ayak ve Koşu sütunları korunur.
@@ -207,7 +234,7 @@ def table(df, height=300):
         colgroup = "<colgroup>" + "".join(
             f'<col style="width:{w/total*100:.2f}%">' for w in widths
         ) + "</colgroup>"
-    table_class = "data-table race-results-table" if is_race_results else ("data-table featured-table" if is_featured else ("data-table agf-summary-table" if is_agf_summary else "data-table"))
+    table_class = "data-table race-results-table" if is_race_results else ("data-table race-program-table" if is_race_program else ("data-table featured-table" if is_featured else ("data-table agf-summary-table" if is_agf_summary else "data-table")))
     html = view.to_html(index=False, escape=True, border=0, classes=table_class)
     if is_featured or is_agf_summary or is_race_results:
         # Yalnızca oran değerlerini rozetle vurgula; satır zeminleri korunur.
@@ -239,6 +266,8 @@ def table(df, height=300):
         st.markdown(f'<div class="agf-summary-wrap"><div class="scroll-table" style="max-height:{height}px">{html}</div></div>', unsafe_allow_html=True)
     elif is_race_results:
         st.markdown(f'<div class="scroll-table race-results-no-scroll">{html}</div>', unsafe_allow_html=True)
+    elif is_race_program:
+        st.markdown(f'<div class="scroll-table" style="max-height:{height}px">{html}</div>', unsafe_allow_html=True)
     else:
         st.markdown(f'<div class="scroll-table" style="max-height:{height}px">{html}</div>', unsafe_allow_html=True)
 
