@@ -69,7 +69,7 @@ section[data-testid="stSidebar"] .stButton>button:hover{{background:#343d61!impo
 .horse-name-pill{{display:inline-flex!important;align-items:center!important;justify-content:center!important;
   max-width:100%!important;min-width:0!important;box-sizing:border-box!important;
   padding:4px 10px!important;border-radius:999px!important;background:#071b3a!important;
-  color:#ffffff!important;font-weight:900!important;text-align:center!important;
+  color:#ff5a6e!important;font-weight:900!important;text-align:center!important;
   line-height:1.15!important;white-space:normal!important;overflow-wrap:break-word!important;
   border:2px solid #00cfff!important;
   box-shadow:0 0 4px #00d9ff,0 0 9px #00aaff,0 0 15px #007bff66,inset 0 0 5px #00cfff55!important}}
@@ -92,6 +92,8 @@ section[data-testid="stSidebar"] .stButton>button:hover{{background:#343d61!impo
 .data-table td:nth-child(4){{color:#005BB3;font-weight:900}}
 .data-table td:nth-child(6),.data-table td:nth-child(7),.data-table td:nth-child(8){{color:#029456;font-weight:900}}
 .scroll-table{{overflow:auto;max-width:100%;width:100%;border-radius:9px;scrollbar-color:#005BB3 #171c30;scrollbar-width:thin}}
+.race-results-no-scroll{{overflow-x:hidden!important;overflow-y:visible!important;max-height:none!important;height:auto!important}}
+.race-results-no-scroll .race-results-table{{height:auto!important}}
 .scroll-table table{{width:100%!important;min-width:0!important;max-width:100%!important;table-layout:fixed!important;box-sizing:border-box}}
 .scroll-table th,.scroll-table td{{box-sizing:border-box;max-width:0}}
 .panel-title .ico{{color:#B2DAE4}}
@@ -235,6 +237,8 @@ def table(df, height=300):
         st.markdown(f'<div class="featured-table-wrap"><div class="scroll-table" style="max-height:{height}px">{html}</div></div>', unsafe_allow_html=True)
     elif is_agf_summary:
         st.markdown(f'<div class="agf-summary-wrap"><div class="scroll-table" style="max-height:{height}px">{html}</div></div>', unsafe_allow_html=True)
+    elif is_race_results:
+        st.markdown(f'<div class="scroll-table race-results-no-scroll">{html}</div>', unsafe_allow_html=True)
     else:
         st.markdown(f'<div class="scroll-table" style="max-height:{height}px">{html}</div>', unsafe_allow_html=True)
 
@@ -259,33 +263,39 @@ if st.session_state.page == "Ana Sayfa":
     hero()
     d = get_dashboard_data()
 
-    # Referans çizimdeki yerleşim: sol üst hava, sol alt atlar;
-    # orta AGF iki katman boyunca; sağ üst sonuçlar, sağ alt olasılık.
+    # Sol üst Yarış Sonuçları, sağ üst Hava ve Pist; AGF orta kolonda korunur.
     left_col, center_col, right_col = st.columns([1.15, 0.82, 1.00], gap="small")
 
     with left_col:
         with st.container(border=True):
-            title("◉", "Hava ve Pist Bilgileri", "(En fazla 3 şehir)")
-            city_names = [x["city"] for x in d["weather"]]
-            selected_cities = st.multiselect(
-                "Şehir seç", city_names, default=city_names[:3],
-                max_selections=3, label_visibility="collapsed",
-                key="weather_cities"
+            title("🏆", "Yarış Sonuçları")
+            choice = st.radio(
+                "Altılı türü", ["1. Altılı", "2. Altılı"],
+                horizontal=True, label_visibility="collapsed"
             )
-            chosen = [x for x in d["weather"] if x["city"] in selected_cities]
-            city_cols = st.columns(max(1, len(chosen)), gap="small")
-            for col, city in zip(city_cols, chosen):
-                with col:
-                    st.markdown(f"""<div class="city-card">
-                        <div class="city-name">📍 {city["city"]}</div>
-                        <div style="font-size:25px">{city["icon"]}</div>
-                        <div class="city-temp">{city["temp"]}°C</div>
-                        <div class="small-muted">{city["condition"]}</div>
-                        <div class="city-meta"><span>Rüzgâr</span><b>{city["wind"]}</b></div>
-                        <div class="city-meta"><span>Nem</span><b>{city["humidity"]}</b></div>
-                        <div class="city-meta"><span>Pist</span><b>{city["track"]}</b></div>
-                        <div class="city-meta"><span>Pist Durumu</span><b>{city["track_state"]}</b></div>
-                        </div>""", unsafe_allow_html=True)
+            result = d["results"][choice]
+            st.markdown(
+                f'<div class="small-muted" style="font-weight:900;color:#B2DAE4;margin:2px 0 6px">'
+                f'ŞEHİR / HİPODROM: {result.get("city", "İSTANBUL")}</div>',
+                unsafe_allow_html=True
+            )
+            result_rows = []
+            for leg in result["legs"]:
+                result_rows.append({
+                    "Ayak": leg.get("Ayak", ""),
+                    "Koşu": leg.get("Koşu", ""),
+                    "At Adı": leg.get("Kazanan At", ""),
+                    "Ganyan": leg.get("Ganyan", "-"),
+                    "AGF": leg.get("AGF", "-"),
+                    "Bitiş Derecesi": leg.get("Bitiş Derecesi", "")
+                })
+            table(pd.DataFrame(result_rows), None)
+            st.markdown(
+                f'<div class="result-box"><b>{choice.upper()} SONUCU:</b> {result["sequence"]}'
+                f'<br><b>İKRAMİYE: {result["payout"]}</b>　|　'
+                f'<b>BİLEN KİŞİ: {result["winners"]}</b></div>',
+                unsafe_allow_html=True
+            )
 
         with st.container(border=True):
             title("♞", "Öne Çıkan Atlar ve Muhtemel Ganyan", "(En fazla 15 at)")
@@ -315,34 +325,27 @@ if st.session_state.page == "Ana Sayfa":
 
     with right_col:
         with st.container(border=True):
-            title("🏆", "Yarış Sonuçları")
-            choice = st.radio(
-                "Altılı türü", ["1. Altılı", "2. Altılı"],
-                horizontal=True, label_visibility="collapsed"
+            title("◉", "Hava ve Pist Bilgileri", "(En fazla 3 şehir)")
+            city_names = [x["city"] for x in d["weather"]]
+            selected_cities = st.multiselect(
+                "Şehir seç", city_names, default=city_names[:3],
+                max_selections=3, label_visibility="collapsed",
+                key="weather_cities"
             )
-            result = d["results"][choice]
-            st.markdown(
-                f'<div class="small-muted" style="font-weight:900;color:#B2DAE4;margin:2px 0 6px">'
-                f'ŞEHİR / HİPODROM: {result.get("city", "İSTANBUL")}</div>',
-                unsafe_allow_html=True
-            )
-            result_rows = []
-            for leg in result["legs"]:
-                result_rows.append({
-                    "Ayak": leg.get("Ayak", ""),
-                    "Koşu": leg.get("Koşu", ""),
-                    "At Adı": leg.get("Kazanan At", ""),
-                    "Ganyan": leg.get("Ganyan", "-"),
-                    "AGF": leg.get("AGF", "-"),
-                    "Bitiş Derecesi": leg.get("Bitiş Derecesi", "")
-                })
-            table(pd.DataFrame(result_rows), 205)
-            st.markdown(
-                f'<div class="result-box"><b>{choice.upper()} SONUCU:</b> {result["sequence"]}'
-                f'<br><b>İKRAMİYE: {result["payout"]}</b>　|　'
-                f'<b>BİLEN KİŞİ: {result["winners"]}</b></div>',
-                unsafe_allow_html=True
-            )
+            chosen = [x for x in d["weather"] if x["city"] in selected_cities]
+            city_cols = st.columns(max(1, len(chosen)), gap="small")
+            for col, city in zip(city_cols, chosen):
+                with col:
+                    st.markdown(f"""<div class="city-card">
+                        <div class="city-name">📍 {city["city"]}</div>
+                        <div style="font-size:25px">{city["icon"]}</div>
+                        <div class="city-temp">{city["temp"]}°C</div>
+                        <div class="small-muted">{city["condition"]}</div>
+                        <div class="city-meta"><span>Rüzgâr</span><b>{city["wind"]}</b></div>
+                        <div class="city-meta"><span>Nem</span><b>{city["humidity"]}</b></div>
+                        <div class="city-meta"><span>Pist</span><b>{city["track"]}</b></div>
+                        <div class="city-meta"><span>Pist Durumu</span><b>{city["track_state"]}</b></div>
+                        </div>""", unsafe_allow_html=True)
 
         with st.container(border=True):
             title("♧", "Kazanma Olasılığı Tahmini", "(Örnek Model)")
