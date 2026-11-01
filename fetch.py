@@ -135,11 +135,13 @@ def _tjk_parse_horse_tables(html):
         no=int(m.group(1)); stop=matches[i+1].start() if i+1<len(matches) else min(len(page_text),m.end()+5000)
         chunk=page_text[m.start():stop]; lines=[x.strip() for x in chunk.splitlines() if x.strip()]
         # Saat bazı TJK sayfalarında koşu başlığından hemen önceki satırda bulunur.
-        prefix_start = matches[i-1].end() if i > 0 else max(0, m.start()-240)
-        prefix = page_text[prefix_start:m.start()]
-        time_scope = prefix + "\\n" + chunk
-        time_matches = list(re.finditer(r"(?<!\\d)(?:[01]?\\d|2[0-3]):[0-5]\\d(?!\\d)", time_scope))
-        tm = time_matches[-1] if time_matches else None
+        # Saati yalnızca koşu etiketinin bulunduğu satırdan al; kilo/primdeki
+        # 0.20 gibi ondalık değerleri saat sanma.
+        after_line = page_text[m.end():].splitlines()[0][:80]
+        before_line = page_text[:m.start()].splitlines()[-1][-40:] if m.start() else ""
+        tm = re.search(r"(?<!\d)(?:[01]?\d|2[0-3])[:.][0-5]\d(?!\d)", after_line)
+        if not tm:
+            tm = re.search(r"(?<!\d)(?:[01]?\d|2[0-3])[:.][0-5]\d(?!\d)", before_line)
         dist=re.search(r"\b(\d{3,4})\s*(?:m|metre)\b",chunk,re.I)
         surf=re.search(r"\b(Çim|Kum|Sentetik)\b",chunk,re.I)
         prize=re.search(r"(?:₺\s*)?(\d{1,3}(?:\.\d{3})+(?:,\d{2})?)\s*(?:₺|TL)",chunk,re.I)
@@ -148,7 +150,7 @@ def _tjk_parse_horse_tables(html):
         cls=cls_match.group(0).strip() if cls_match else ""
         age_match=re.search(r"(?i)(\d+\s*(?:ve\s*yukarı\s*)?yaşlı\s+(?:ingilizler|araplar)|\d+\s*yaşlı\s+(?:ingiliz|arap))",chunk)
         age=age_match.group(0).strip() if age_match else ""
-        meta[no]={"no":no,"time":tm.group(0) if tm else "","name":name,"class":cls,"age":age,"distance":f"{dist.group(1)} m" if dist else "","surface":surf.group(1).title() if surf else "","prize":f"{prize.group(1)} ₺" if prize else ""}
+        meta[no]={"no":no,"time":tm.group(0).replace(".", ":") if tm else "","name":name,"class":cls,"age":age,"distance":f"{dist.group(1)} m" if dist else "","surface":surf.group(1).title() if surf else "","prize":f"{prize.group(1)} ₺" if prize else ""}
 
     # TJK programında eküri bilgisi çoğunlukla tablonun altında
     # [(1)AT ADI,(5)DİĞER AT] eküridir. biçiminde yayımlanır.
