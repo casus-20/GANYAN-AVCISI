@@ -568,7 +568,7 @@ elif st.session_state.page == "Yarış Programı":
                         return raw
                     base = m.group("base").replace(".", ",")
                     extra = (m.group("extra") or "").replace(" ", "").replace(".", ",")
-                    return f"{base} KG" + (f" {extra}" if extra else "")
+                    return f"{base}KG" + (f" {extra}" if extra else "")
 
                 def _format_program_st(value):
                     raw = str(value or "").strip()
@@ -595,6 +595,8 @@ elif st.session_state.page == "Yarış Programı":
 
                 def _split_program_horse_name(horse):
                     raw = str(horse.get("name") or horse.get("at_ismi") or "").strip()
+                    nonrunner = bool(horse.get("nonRunner") or horse.get("Koşmaz") or horse.get("koşmaz") or _re.search(r"\(\s*ko[sş]maz\s*\)", raw, flags=_re.I))
+                    raw = _re.sub(r"\s*\(\s*ko[sş]maz\s*\)", "", raw, flags=_re.I)
                     raw = _re.sub(r"\s*Image.*$", "", raw, flags=_re.I)
                     number = str(horse.get("no") or horse.get("numara") or "").strip()
                     if not number:
@@ -610,11 +612,11 @@ elif st.session_state.page == "Yarış Programı":
                         r"(?:\s+(?:Ring|Kulaklık|Kulaklik|Kapalı|Kapali|Dilbağı|Dilbagi|Dilinin|Gözlük|Gozluk|Takı|Taki)\b.*)?$",
                         "", clean_name, flags=_re.I
                     ).strip()
-                    return clean_name or raw, number, equipment
+                    return clean_name or raw, number, equipment, nonrunner
 
                 display_rows = []
                 for i, h in enumerate(horses, 1):
-                    horse_name, horse_no, equipment = _split_program_horse_name(h)
+                    horse_name, horse_no, equipment, nonrunner = _split_program_horse_name(h)
                     owner = str(h.get("owner") or h.get("sahip") or "").strip()
                     trainer = str(h.get("trainer") or h.get("antrenor") or "").strip()
                     eid_degree, eid_embedded_info = _format_program_eid(h.get("bestTime") or "")
@@ -628,6 +630,8 @@ elif st.session_state.page == "Yarış Programı":
                     display_rows.append({
                         "No": horse_no or str(h.get("no") or i),
                         "At İsmi": horse_name,
+                        "_nonrunner": nonrunner,
+                        "_ekuri": bool(h.get("ekuri") or h.get("Eküri") or h.get("eküri")),
                         "Yaş": h.get("age") or h.get("yas") or "",
                         "Orijin (Baba-Anne)": h.get("origin") or h.get("orijin") or "",
                         "Kilo": _format_program_weight(h.get("weight") or h.get("siklet") or ""),
@@ -663,9 +667,12 @@ elif st.session_state.page == "Yarış Programı":
                         if key == "At İsmi":
                             number = _html.escape(str(row.get("No", "")))
                             gear = _html.escape(str(row.get("_equipment", "")))
+                            nonrunner_tag = ' <span style="color:#d40000!important;font-size:9px!important;font-weight:900!important">KOŞMAZ</span>' if row.get("_nonrunner") else ""
+                            ekuri_tag = ' <span title="Eküri" style="color:#d40000!important;font-size:11px!important;font-weight:900!important">♞</span>' if row.get("_ekuri") else ""
                             safe = (
                                 f'<span class="rp-horse-name">{safe}</span> '
-                                f'<span class="rp-horse-no">({number})</span> '
+                                f'<span class="rp-horse-no">({number})</span>'
+                                f'{ekuri_tag}{nonrunner_tag} '
                                 f'<span class="rp-equipment">{gear}</span>'
                             )
                         elif key == "Orijin (Baba-Anne)":
@@ -676,15 +683,16 @@ elif st.session_state.page == "Yarış Programı":
                             if dam:
                                 safe += f'<br><span class="rp-origin-dam">{dam}</span>'
                         elif key == "Kilo":
-                            km = _re.match(r"^(\d+(?:[.,]\d+)?) KG(?:\s+([+]\d+(?:[.,]\d+)?))?$", value, flags=_re.I)
+                            km = _re.match(r"^(\d+(?:[.,]\d+)?)\s*KG(?:\s*([+]\s*\d+(?:[.,]\d+)?))?$", value, flags=_re.I)
                             if km:
-                                base = _html.escape(km.group(1) + " KG")
-                                extra = f' <span style="color:#d40000!important;font-weight:900!important">{_html.escape(km.group(2))}</span>' if km.group(2) else ""
+                                base = _html.escape(km.group(1) + "KG")
+                                extra_value = _re.sub(r"\s+", "", km.group(2) or "")
+                                extra = f' <span style="color:#d40000!important;font-size:9px!important;font-weight:900!important;white-space:nowrap">{_html.escape(extra_value)}</span>' if extra_value else ""
                                 safe = base + extra
                         elif key == "St":
                             sm = _re.match(r"^(\d+)\s+(DS|TS)$", value, flags=_re.I)
                             if sm:
-                                safe = f'{_html.escape(sm.group(1))} <span style="color:#d40000!important;font-weight:900!important">{_html.escape(sm.group(2).upper())}</span>'
+                                safe = f'{_html.escape(sm.group(1))} <span style="color:#d40000!important;font-size:9px!important;font-weight:900!important">{_html.escape(sm.group(2).upper())}</span>'
                         elif key == "Jokey":
                             safe = f'<span class="rp-jockey">{safe}</span>'
                         elif key == "Sahip / Antrenör":
