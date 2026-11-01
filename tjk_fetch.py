@@ -163,6 +163,31 @@ def _html_rows(table):
 def _html_cells(row):
     return [_html_text(x) for x in re.findall(r"<(?:td|th)\b[^>]*>([\s\S]*?)</(?:td|th)>",row or "",flags=re.I)]
 
+def _html_cells_raw(row):
+    """Tablo hücrelerinin HTML içeriğini, tooltip/title metaverisiyle birlikte döndürür."""
+    return re.findall(r"<(?:td|th)\b([^>]*)>([\s\S]*?)</(?:td|th)>", row or "", flags=re.I)
+
+def _cell_tooltip(cell_attrs, cell_html):
+    from html import unescape
+    candidates = []
+    for key in ("title", "aria-label", "data-original-title", "data-content", "data-tooltip"):
+        match = re.search(r"\b" + re.escape(key) + r"\s*=\s*(['\"])(.*?)\1", cell_attrs or "", re.I | re.S)
+        if match:
+            candidates.append(match.group(2))
+    for key in ("title", "aria-label", "data-original-title", "data-content", "data-tooltip"):
+        match = re.search(r"\b" + re.escape(key) + r"\s*=\s*(['\"])(.*?)\1", cell_html or "", re.I | re.S)
+        if match:
+            candidates.append(match.group(2))
+    # Bazı TJK sürümlerinde açıklama doğrudan hücre içindeki gizli span'de bulunur.
+    for match in re.finditer(r"<(?:span|div|a)\b([^>]*)>([\s\S]*?)</(?:span|div|a)>", cell_html or "", re.I):
+        attrs, body = match.groups()
+        for key in ("title", "aria-label", "data-content", "data-original-title"):
+            attr = re.search(r"\b" + key + r"\s*=\s*(['\"])(.*?)\1", attrs, re.I | re.S)
+            if attr:
+                candidates.append(attr.group(2))
+    cleaned = [_html_text(unescape(x)).strip() for x in candidates]
+    return next((x for x in cleaned if x), "")
+
 def _at_id(row):
     m=re.search(r"(?:QueryParameter_AtId|AtKodu|Atkodu)=(\d+)",row or "",flags=re.I)
     return m.group(1) if m else None
@@ -207,11 +232,15 @@ def _parse_tjk_daily(html):
         horses = []
         for row in rows[header_index + 1:]:
             cells = _html_cells(row)
+            raw_cells = _html_cells_raw(row)
             if not cells:
                 continue
             def val(key):
                 i = idx[key]
                 return cells[i].strip() if 0 <= i < len(cells) else ""
+            def tooltip(key):
+                i = idx[key]
+                return _cell_tooltip(*raw_cells[i]) if 0 <= i < len(raw_cells) else ""
             no_match = re.match(r"^(\d{1,2})$", val("no"))
             if not no_match:
                 continue
@@ -224,7 +253,7 @@ def _parse_tjk_daily(html):
                 "jockey": val("jockey"), "owner": val("owner"),
                 "trainer": val("trainer"), "st": val("st"), "hp": val("hp"),
                 "last6": val("last6"), "kgs": val("kgs"), "s20": val("s20"),
-                "bestTime": val("best"), "bestInfo": "", "bestCity": "",
+                "bestTime": val("best"), "bestInfo": tooltip("best"), "bestCity": "",
                 "bestDate": "", "bestDistance": "", "odds": val("odds"),
                 "agf": val("agf"), "workout": val("workout"),
                 "lastDate": val("lastDate"), "atId": _at_id(row),
