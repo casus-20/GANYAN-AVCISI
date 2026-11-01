@@ -107,11 +107,48 @@ div[data-testid="stRadio"] label{{color:#f5f5fb}}
 @media(max-width:1100px){{.block-container{{padding-left:.6rem;padding-right:.6rem}}.data-table{{font-size:11px}}}}
 @media(max-width:700px){{.hero{{padding:12px;min-height:100px;background-position:72% center}}.hero p{{max-width:72%;font-size:11px}}[data-testid="stVerticalBlockBorderWrapper"]{{padding:7px!important}}}}
 
+/* Yalnızca Yarış Sonuçları tablosunun dar sağ paneldeki ölçü düzeltmesi */
+.race-results-table {{ table-layout:fixed!important; width:100%!important; min-width:100%!important; }}
+.race-results-table th {{ font-size:9px!important; line-height:1.1!important; padding:5px 2px!important; white-space:nowrap!important; overflow:hidden!important; text-overflow:clip!important; word-break:keep-all!important; overflow-wrap:normal!important; }}
+.race-results-table td {{ font-size:10px!important; line-height:1.15!important; padding:5px 2px!important; white-space:nowrap!important; overflow:hidden!important; text-overflow:clip!important; }}
+.race-results-table td:nth-child(3) {{ white-space:normal!important; overflow-wrap:break-word!important; }}
+.race-results-table .featured-pill {{ font-size:9px!important; min-width:0!important; padding:3px 4px!important; }}
+.race-results-table th:nth-child(1),.race-results-table td:nth-child(1) {{ white-space:nowrap!important; }}
+.race-results-table th:nth-child(2),.race-results-table td:nth-child(2) {{ white-space:nowrap!important; }}
+.race-results-table th:nth-child(6),.race-results-table td:nth-child(6) {{ white-space:nowrap!important; }}
+
 /* Ana sayfa işaretli alanların kolon sınırları */
 [data-testid="stHorizontalBlock"]{{align-items:stretch!important;min-width:0!important}}
 [data-testid="stHorizontalBlock"]>div{{min-width:0!important;max-width:100%!important}}
 [data-testid="stVerticalBlockBorderWrapper"]{{min-width:0!important;max-width:100%!important;overflow:hidden}}
 .scroll-table{{min-width:0!important}}
+
+/* Gerçek ekran genişliğine göre tabloları sıkıştır: başlık ve hücre taşmasını engelle */
+.data-table {{ width:100%!important; max-width:100%!important; table-layout:fixed!important; }}
+.data-table th {{ font-size:10px!important; line-height:1.15!important; padding:5px 3px!important;
+  white-space:nowrap!important; overflow-wrap:normal!important; word-break:keep-all!important; }}
+.data-table td {{ font-size:11px!important; line-height:1.2!important; padding:5px 4px!important;
+  overflow-wrap:normal!important; word-break:normal!important; }}
+.scroll-table {{ width:100%!important; max-width:100%!important; overflow-x:hidden!important; }}
+.scroll-table table {{ width:100%!important; min-width:100%!important; max-width:100%!important;
+  table-layout:fixed!important; }}
+.scroll-table th,.scroll-table td {{ max-width:none!important; min-width:0!important; box-sizing:border-box!important; }}
+.race-results-table th {{ font-size:10px!important; white-space:nowrap!important; padding:5px 2px!important; }}
+.race-results-table td {{ font-size:11px!important; padding:5px 3px!important; white-space:nowrap!important; }}
+.race-results-table td:nth-child(3) {{ font-size:11px!important; white-space:normal!important; overflow-wrap:anywhere!important; }}
+.race-results-table .featured-pill {{ font-size:10px!important; min-width:0!important; padding:3px 5px!important; }}
+.featured-table th {{ font-size:9px!important; padding:5px 2px!important; }}
+.featured-table td {{ font-size:11px!important; padding:6px 4px!important; }}
+.featured-table .featured-pill {{ font-size:10px!important; padding:3px 5px!important; }}
+.agf-summary-table th,.agf-summary-table td {{ font-size:11px!important; padding:6px 4px!important; }}
+.agf-summary-table .featured-pill.agf {{ font-size:11px!important; padding:3px 7px!important; min-width:0!important; }}
+@media(max-width:1400px) {{
+  .panel-title {{ font-size:14px!important; }}
+  .race-results-table th {{ font-size:9px!important; }}
+  .race-results-table td {{ font-size:10px!important; }}
+  .featured-table th {{ font-size:8.5px!important; }}
+  .featured-table td {{ font-size:10px!important; }}
+}}
 </style>''', unsafe_allow_html=True)
 
 def title(icon, text, extra=""):
@@ -149,8 +186,10 @@ def table(df, height=300):
     if is_race_results:
         # Önceki ölçülere göre: At Adı %15 daraltıldı, AGF %5 daraltıldı,
         # B. Derece alanı genişletildi. Ayak ve Koşu sütunları korunur.
-        result_widths = {"Ayak": 10, "Koşu": 11, "At Adı": 27,
-                         "Ganyan": 10, "AGF": 12.35, "B. Derece": 14.1}
+        # Sağ panel dar olduğundan sütunları kullanılabilir alana göre paylaştır.
+        # AYAK/KOŞU/B.DERECE başlıkları tek satırda kalır; AT ADI alanı yeterli genişlikte.
+        result_widths = {"Ayak": 11, "Koşu": 12, "At Adı": 29,
+                         "Ganyan": 11, "AGF": 11, "B. Derece": 26}
         widths = [result_widths.get(str(c), 10) for c in view.columns]
         total = sum(widths)
         colgroup = "<colgroup>" + "".join(
