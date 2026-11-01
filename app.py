@@ -65,6 +65,15 @@ section[data-testid="stSidebar"] .stButton>button:hover{{background:#343d61!impo
 .agf-summary-table tbody tr:nth-child(odd) td{{background:#555b64!important}}
 .agf-summary-table tbody tr:nth-child(even) td{{background:#3b414a!important}}
 .agf-summary-table tbody tr td:nth-child(2){{color:#ffffff!important;font-weight:900!important}}
+/* Üç ana tabloda at adlarını lacivert elips rozet içinde göster */
+.horse-name-pill{{display:inline-flex!important;align-items:center!important;justify-content:center!important;
+  max-width:100%!important;min-width:0!important;box-sizing:border-box!important;
+  padding:4px 10px!important;border-radius:999px!important;background:#071b3a!important;
+  color:#ffffff!important;font-weight:900!important;text-align:center!important;
+  line-height:1.15!important;white-space:normal!important;overflow-wrap:break-word!important;
+  border:1px solid #9bb6d8!important;box-shadow:inset 0 0 0 1px #ffffff18!important}}
+.featured-table tbody td:nth-child(2),.agf-summary-table tbody td:nth-child(2),
+.race-results-table tbody td:nth-child(3){{text-align:center!important}}
 .agf-summary-table tbody tr:hover td{{background:inherit!important}}
 .agf-summary-table .featured-pill.agf{{background:#029456!important;color:#fff!important;font-size:14px!important;padding:4px 11px!important;min-width:48px}}
 .race-results-table{{table-layout:fixed!important;width:100%!important}}
@@ -210,6 +219,9 @@ def table(df, height=300):
                 badge_targets.append((agf_idx, "result-agf" if is_race_results else "agf"))
             if odds_idx is not None:
                 badge_targets.append((odds_idx, "ganyan"))
+            name_idx = headers.index("At Adı") if "At Adı" in headers else None
+            if name_idx is not None:
+                badge_targets.append((name_idx, "horse-name-pill"))
             for idx, cls in badge_targets:
                 if idx < len(cells):
                     value = cells[idx]
