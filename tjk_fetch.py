@@ -391,11 +391,16 @@ def _discover_tjk_venues(date_value, timeout=25):
                 names = params.get("SehirAdi") or params.get("sehirAdi") or params.get("Sehir") or []
                 name = normalize_text(names[0] if names else link_text)
                 name = re.sub(r"\s*\([^)]*\)\s*$", "", name).strip()
-                if not name or not ids or not str(ids[0]).isdigit():
+                if not name:
                     continue
-                cid = int(ids[0])
-                # Aynı şehrin tekrar eden linkleri içinden tam program sayfasını sakla.
                 key = _canonical_city_name(name)
+                if ids and str(ids[0]).isdigit():
+                    cid = int(ids[0])
+                else:
+                    cid = CITY_IDS.get(name) or CITY_IDS.get(key)
+                if not cid:
+                    continue
+                # Aynı şehrin tekrar eden linkleri içinden tam program sayfasını sakla.
                 found[key] = {"id": cid, "url": absolute}
 
             if found:
@@ -432,7 +437,17 @@ def _fetch_tjk_daily(date_value, city, timeout=45):
     parsed = urlparse(discovered_url) if discovered_url else None
     path = parsed.path if parsed and "/Info/Sehir/" in parsed.path else "/TR/YarisSever/Info/Sehir/GunlukYarisProgrami"
     query = dict(parse_qsl(parsed.query, keep_blank_values=True)) if parsed else {}
+    # TJK'nın şehir programı URL'si Era parametresini kullanır.
+    # Aynı gün için "today", geçmiş tarihler için "yesterday" gönderilir.
+    try:
+        from zoneinfo import ZoneInfo
+        tjk_today = datetime.now(ZoneInfo("Europe/Istanbul")).date()
+    except Exception:
+        tjk_today = date.today()
+    target_day = datetime.strptime(iso, "%Y-%m-%d").date()
+    era = "today" if target_day >= tjk_today else "yesterday"
     query.update({
+        "Era": era,
         "QueryParameter_Tarih": dmy,
         "SehirAdi": city,
         "SehirId": str(cid),
