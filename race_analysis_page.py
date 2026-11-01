@@ -548,18 +548,8 @@ def render():
         st.session_state["real_analysis_done"] = False
 
 
-    real_col_left, real_col_center, real_col_right = st.columns([1, 1.15, 1])
-    with real_col_center:
-        _real_clicked = st.button(
-            "🔎 GERÇEK VERİ İLE ANALİZ ET",
-            key="real_analysis_button_top",
-            use_container_width=True,
-            type="primary",
-        )
-        if _real_clicked:
-            st.session_state["analysis_mode"] = "Gerçek veri"
-            st.session_state["real_analysis_requested"] = True
-            st.session_state["real_analysis_done"] = False
+    # GERÇEK VERİ butonu tarih/hipodrom satırındaki kendi alanına taşındı.
+    # Böylece üstte fazladan boş buton satırı oluşmaz.
 
     # Manuel analiz kaldırıldı; bu sayfa yalnızca gerçek TJK verisiyle çalışır.
     st.session_state["analysis_mode"] = "Gerçek veri"
@@ -3445,7 +3435,10 @@ def render():
         st.session_state["selected_date_widget"] = _today
         st.session_state["_date_auto_sync_day"] = _today
 
-    date_col, city_col, action_col = st.columns([1, 1, 0.42], gap="medium")
+    date_col, city_col, real_action_col, action_col = st.columns(
+        [0.74, 1.00, 0.64, 0.50],
+        gap="small",
+    )
 
     with date_col:
         selected_date = st.date_input(
@@ -3478,6 +3471,19 @@ def render():
             index=default_city_index,
             key="analysis_hippodrome_select",
         )
+
+    with real_action_col:
+        st.markdown("<div style='height:27px'></div>", unsafe_allow_html=True)
+        _real_clicked = st.button(
+            "🔎 GERÇEK VERİ İLE ANALİZ ET",
+            key="real_analysis_button_top",
+            use_container_width=True,
+            type="primary",
+        )
+        if _real_clicked:
+            st.session_state["analysis_mode"] = "Gerçek veri"
+            st.session_state["real_analysis_requested"] = True
+            st.session_state["real_analysis_done"] = False
 
     with action_col:
         st.markdown("<div style='height:27px'></div>", unsafe_allow_html=True)
@@ -3615,12 +3621,22 @@ def render():
         races = []
 
     # Program özeti races tanımlandıktan sonra gösterilir.
+    _horse_count = sum(
+        len(r.get("horses", [])) for r in races if isinstance(r, dict)
+    )
     st.markdown(
-        f"<div class='sidebar-program-status'>"
-        f"{_html.escape(str(selected_city))} — {selected_date.strftime('%d/%m/%Y')} — "
-        f"{len(races)} koşu bulundu.<br>"
-        f"<b>✓ {len(races)} koşu • "
-        f"{sum(len(r.get('horses', [])) for r in races if isinstance(r, dict))} at verisi alındı</b>"
+        f"<div class='sidebar-program-status' style='"
+        f"height:25px;min-height:25px;box-sizing:border-box;"
+        f"display:flex;align-items:center;gap:8px;"
+        f"padding:2px 10px;margin:3px 0 7px;"
+        f"border:1px solid rgba(130,150,190,.28);border-radius:5px;"
+        f"background:rgba(20,28,48,.45);color:#cbd5e1;"
+        f"font-size:12px;line-height:18px;white-space:nowrap;overflow:hidden;"
+        f"text-overflow:ellipsis;'>"
+        f"<b style='color:#8fb5ff'>{_html.escape(str(selected_city))}</b>"
+        f"<span>•</span><span>{selected_date.strftime('%d/%m/%Y')}</span>"
+        f"<span>•</span><b>{len(races)} koşu</b>"
+        f"<span>•</span><b>{_horse_count} at verisi alındı</b>"
         f"</div>",
         unsafe_allow_html=True,
     )
@@ -3663,8 +3679,8 @@ def render():
     # KOŞU SEÇİMİ
     # ============================================================
 
-    st.subheader("Koşular")
-
+    # Ayrı "Koşular" başlığı kaldırıldı; durum çubuğunun hemen altında
+    # koşu seçim butonları başlar ve tablo yukarı taşınır.
 
     # Koşu butonları pist türüne göre V34 renk düzeninde boyanır.
     _race_css = ["<style>"]
