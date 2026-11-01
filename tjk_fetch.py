@@ -391,19 +391,11 @@ def _discover_tjk_venues(date_value, timeout=25):
                 names = params.get("SehirAdi") or params.get("sehirAdi") or params.get("Sehir") or []
                 name = normalize_text(names[0] if names else link_text)
                 name = re.sub(r"\s*\([^)]*\)\s*$", "", name).strip()
-                if not name:
+                if not name or not ids or not str(ids[0]).isdigit():
                     continue
-                # TJK günlük program ana sayfasının bazı sürümleri şehir linkinde
-                # SehirId göndermiyor; yalnızca SehirAdi bulunuyor. Yerli hipodromlarda
-                # resmi şehir ID eşlemesini kullanarak bu bağlantıları da kabul et.
-                key = _canonical_city_name(name)
-                if ids and str(ids[0]).isdigit():
-                    cid = int(ids[0])
-                else:
-                    cid = CITY_IDS.get(name) or CITY_IDS.get(key)
-                if not cid:
-                    continue
+                cid = int(ids[0])
                 # Aynı şehrin tekrar eden linkleri içinden tam program sayfasını sakla.
+                key = _canonical_city_name(name)
                 found[key] = {"id": cid, "url": absolute}
 
             if found:
@@ -982,9 +974,19 @@ def get_active_cities(date_value: Any) -> List[str]:
     # Kaynak yalnızca kullanıcının belirttiği TJK günlük program ana sayfasıdır.
     # Sabit yerli hipodrom listesi eklenmez; sayfanın verdiği tüm yerli/yabancı
     # hipodrom bağlantıları tek tek doğrulanır.
-    candidates = _discover_tjk_venues(target, timeout=25)
+    discovered = _discover_tjk_venues(target, timeout=25)
+
+    # TJK'nın günlük program ana sayfası bazı günlerde şehir bağlantılarını
+    # hiç üretmeyebiliyor. Yerli hipodromlar için resmi şehir ID listesiyle
+    # doğrudan şehir endpoint'lerini de kontrol et. Listeye ancak tarih,
+    # hipodrom ve gerçek koşu tablosu _fetch_tjk_daily tarafından doğrulanırsa al.
+    candidates_by_key = {_canonical_city_name(city): city for city in discovered}
+    for city in CITY_IDS:
+        candidates_by_key.setdefault(_canonical_city_name(city), city)
+    candidates = list(candidates_by_key.values())
     if not candidates:
         return []
+
     def check(city):
         try:
             data = _fetch_tjk_daily(target, city, timeout=25)
