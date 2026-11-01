@@ -783,16 +783,10 @@ elif st.session_state.page == "Yarış Programı":
                             gear = _html.escape(str(row.get("_equipment", "")))
                             nonrunner_tag = ' <span style="color:#d40000!important;font-size:9px!important;font-weight:900!important">KOŞMAZ</span>' if row.get("_nonrunner") else ""
                             ekuri_tag = ' <span title="Eküri" style="color:#d40000!important;font-size:11px!important;font-weight:900!important">♞</span>' if row.get("_ekuri") else ""
-                            form_value = _html.escape(str(row.get("_horse_form", "") or "").strip())
-                            form_tag = (
-                                f' <span style="color:#075b32!important;font-size:10px!important;font-weight:900!important">'
-                                f'<span style="color:#1683d8!important"> (</span>{form_value}'
-                                f'<span style="color:#1683d8!important">)</span></span>'
-                            ) if form_value else ""
                             safe = (
                                 f'<span class="rp-horse-name">{safe}</span> '
                                 f'<span class="rp-horse-no">({number})</span>'
-                                f'{form_tag}{ekuri_tag}{nonrunner_tag} '
+                                f'{ekuri_tag}{nonrunner_tag} '
                                 f'<span class="rp-equipment">{gear}</span>'
                             )
                         elif key == "Orijin (Baba-Anne)":
