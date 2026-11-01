@@ -151,29 +151,28 @@ def _tjk_parse_horse_tables(html):
         cls=cls_match.group(0).strip() if cls_match else ""
         age_match=re.search(r"(?i)(\d+\s*(?:ve\s*yukarı\s*)?yaşlı\s+(?:ingilizler|araplar)|\d+\s*yaşlı\s+(?:ingiliz|arap))",chunk)
         age=age_match.group(0).strip() if age_match else ""
-        meta[no]={"no":no,"time":tm.group(0).replace(".", ":") if tm else "","name":name,"class":cls,"age":age,"distance":f"{dist.group(1)} m" if dist else "","surface":surf.group(1).title() if surf else "","prize":f"{prize.group(1)} ₺" if prize else ""}
+        # Yalnızca bu koşunun başlığı ile sonraki koşu başlığı arasındaki
+        # TJK dipnotlarını oku; her ayrı köşeli parantez grubu ayrı eküridir.
+        ekuri_group_by_program_no = {}
+        ekuri_footer = re.search(
+            r"((?:\[[^\]]+\]\s*,?\s*)+)ek[uü]r[iı]dir",
+            chunk, flags=re.I
+        )
+        if ekuri_footer:
+            # Each separate [...] block is a distinct ekuri group.
+            for group_id, group_text in enumerate(
+                re.findall(r"\[([^\]]+)\]", ekuri_footer.group(1)), start=1
+            ):
+                for entry in re.split(r"\s*,\s*", group_text):
+                    nm = re.match(r"\s*\(?\s*(\d{1,2})\s*\)?\s*(.*)$", entry)
+                    if nm and nm.group(2).strip():
+                        ekuri_group_by_program_no[nm.group(1)] = group_id
+        meta[no]={"no":no,"time":tm.group(0).replace(".", ":") if tm else "","name":name,"class":cls,"age":age,"distance":f"{dist.group(1)} m" if dist else "","surface":surf.group(1).title() if surf else "","prize":f"{prize.group(1)} ₺" if prize else "", "ekuri_group_by_program_no":ekuri_group_by_program_no}
 
-    # TJK programında eküri bilgisi çoğunlukla tablonun altında
-    # [(1)AT ADI,(5)DİĞER AT] eküridir. biçiminde yayımlanır.
-    ekuri_names = set()
-    ekuri_program_nos = set()
-    # TJK footer may contain multiple adjacent ekuri groups:
-    # [(1)HORSE A,(10)HORSE B],[(14)HORSE C,(16)HORSE D] eküridir.
-    # The number in this footer is the table's N/program-row number, NOT
-    # the horse's saddlecloth number shown in parentheses after its name.
-    ekuri_blocks = re.findall(
-        r"((?:\[[^\]]+\]\s*,?\s*)+)ek[uü]r[iı]dir",
-        page_text, flags=re.I
-    )
-    for block in ekuri_blocks:
-        for group in re.findall(r"\[([^\]]+)\]", block):
-            for entry in re.split(r"\s*,\s*", group):
-                number_match = re.match(r"\s*\(?\s*(\d{1,2})\s*\)?\s*(.*)$", entry)
-                if number_match:
-                    ekuri_program_nos.add(number_match.group(1))
-                    entry_name = number_match.group(2).strip(" ()")
-                    if entry_name:
-                        ekuri_names.add(_tjk_norm(entry_name))
+    # Eküri grupları aşağıda her koşunun kendi metin aralığında okunur.
+    # Günün tamamını tek seferde taramak başka koşulardaki N=5,6 gibi
+    # numaraları bu koşuya taşıyıp yanlış atları işaretliyordu.
+
 
     tables=[]
     for table in soup.find_all("table"):
@@ -236,19 +235,15 @@ def _tjk_parse_horse_tables(html):
             clean_horse_name = re.sub(r"\s*\(\s*ko[sş]maz\s*\)", "", raw_horse_name, flags=re.I).strip()
             name_for_ekuri = re.sub(r"\s*\(\d{1,2}\)", "", clean_horse_name)
             name_for_ekuri = re.sub(r"\s*image\s*$", "", name_for_ekuri, flags=re.I).strip()
-            # Prefer TJK's explicit N value from the ekuri footer. This is
-            # stable even when horse-name cells contain equipment abbreviations
-            # or saddlecloth numbers differ from the footer's row number.
+            # Match TJK footer N only against this race's own groups.
             program_no = re.sub(r"\D", "", str(v("n", "sira", "forma") or ""))
-            is_ekuri = (
-                program_no in ekuri_program_nos
-                if program_no and ekuri_program_nos
-                else _tjk_norm(name_for_ekuri) in ekuri_names
-            )
+            ekuri_group = (meta.get(no, {}).get("ekuri_group_by_program_no") or {}).get(program_no, 0)
+            is_ekuri = bool(ekuri_group)
             horses.append({
                 "_at_id": at_id,
                 "Koşmaz": status_is_nonrunner,
                 "Eküri": is_ekuri,
+                "Eküri Grup": ekuri_group,
                 "EİD Bilgi": eid_info,
                 "Sıra":v("n","sira","forma"),"At No":horse_number,"At Adı":clean_horse_name,
                 "Yaş / Cins":v("yas","yascins","yascinsiyet"),"Orijin (Baba - Anne)":v("orijinbabaanne","orijinbabaannen","orijinbabaannesi","orijin"),
@@ -431,6 +426,7 @@ def get_tjk_program(date_value, city):
                 "name": h.get("At Adı") or "",
                 "nonRunner": bool(h.get("Koşmaz")),
                 "ekuri": bool(h.get("Eküri")),
+                "ekuriGroup": h.get("Eküri Grup") or 0,
                 "age": h.get("Yaş / Cins") or "",
                 "origin": h.get("Orijin (Baba - Anne)") or "",
                 "weight": h.get("Sıklet") or "",
