@@ -526,23 +526,43 @@ def render():
 
 
     # ============================================================
-    # BAŞLIK — TJK YENİ YAPI
-    # ============================================================
-
+    # GANYAN AVCISI başlığı: Ana Sayfa ile aynı banner sınıfı ve başlık.
     st.markdown(
         """
-        <div class="ri-header">
-            <div>
-                <div class="ri-title">🏇 RACE INTELLIGENCE</div>
-                <div class="ri-subtitle">
-                    Gerçek TJK geçmişi + galop + analiz motoru
-                </div>
-            </div>
-            <div class="ri-clock">TJK YENİ YAPI</div>
+        <div class="hero">
+            <h1><span class="accent">GANYAN</span> AVCISI</h1>
+            <p>YARIŞ ANALİZİ</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+
+    # ============================================================
+    # GERÇEK VERİ ANALİZİ
+    # ============================================================
+
+    def _request_real_analysis():
+        st.session_state["analysis_mode"] = "Gerçek veri"
+        st.session_state["real_analysis_requested"] = True
+        st.session_state["real_analysis_done"] = False
+
+
+    real_col_left, real_col_center, real_col_right = st.columns([1, 1.15, 1])
+    with real_col_center:
+        _real_clicked = st.button(
+            "🔎 GERÇEK VERİ İLE ANALİZ ET",
+            key="real_analysis_button_top",
+            use_container_width=True,
+            type="primary",
+        )
+        if _real_clicked:
+            st.session_state["analysis_mode"] = "Gerçek veri"
+            st.session_state["real_analysis_requested"] = True
+            st.session_state["real_analysis_done"] = False
+
+    # Manuel analiz kaldırıldı; bu sayfa yalnızca gerçek TJK verisiyle çalışır.
+    st.session_state["analysis_mode"] = "Gerçek veri"
 
 
     # ============================================================
@@ -3486,8 +3506,7 @@ def render():
     # SIDEBAR
     # ============================================================
 
-    st.title("🏇 Yarış Programı")
-
+    # Tarih ve hipodrom aynı satırda seçilir.
     # Gün değiştiğinde önceki Streamlit widget state'inin (örn. 12/09)
     # yeni günü (örn. 13/09) kilitlemesini engelle. Kullanıcı aynı gün
     # farklı bir tarih seçerse seçimi korunur; yalnızca takvim günü değiştiğinde
@@ -3501,10 +3520,12 @@ def render():
         st.session_state["selected_date_widget"] = _today
         st.session_state["_date_auto_sync_day"] = _today
 
-    selected_date = st.date_input(
-        "Tarih",
-        key="selected_date_widget",
-    )
+    date_col, city_col = st.columns([1, 1], gap="medium")
+    with date_col:
+        selected_date = st.date_input(
+            "Tarih",
+            key="selected_date_widget",
+        )
 
 
     # ============================================================
@@ -3531,11 +3552,12 @@ def render():
     else:
         default_city_index = 0
 
-    selected_city = st.selectbox(
-        "Hipodrom",
-        active_cities,
-        index=default_city_index,
-    )
+    with city_col:
+        selected_city = st.selectbox(
+            "Hipodrom",
+            active_cities,
+            index=default_city_index,
+        )
 
     # ============================================================
     # PROGRAMI GETİR
