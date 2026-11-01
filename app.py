@@ -561,7 +561,7 @@ elif st.session_state.page == "Yarış Programı":
                     )
                     with st.container(key=race_button_wrap):
                         if st.button(
-                            f'{race_no}. Koşu\\n{race_item.get("time", "")}',
+                            f'{race_no}. Koşu\n{race_item.get("time", "")}',
                             key=race_button_key,
                             use_container_width=True,
                             type="secondary"
@@ -588,7 +588,20 @@ elif st.session_state.page == "Yarış Programı":
 
         with st.container(border=True):
             import html as _race_html
-            race_class_text = str(race.get("class", meta.get("class", "")) or "")
+            selected_race_item = next(
+                (item for item in races
+                 if int(item.get("no") or item.get("race_number") or 0) == int(selected)),
+                {}
+            )
+            race_class_text = str(
+                race.get("class") or race.get("condition") or meta.get("class") or
+                race.get("race_class") or race.get("raceClass") or race.get("race_type") or
+                race.get("raceType") or race.get("type") or meta.get("raceClass") or
+                meta.get("race_type") or selected_race_item.get("class") or
+                selected_race_item.get("condition") or selected_race_item.get("race_class") or
+                selected_race_item.get("raceClass") or selected_race_item.get("race_type") or
+                selected_race_item.get("raceType") or selected_race_item.get("type") or ""
+            ).strip()
             race_details = str(race.get("details") or "").strip()
             surface_key = str(surface or "").casefold()
             # Aynı pist renkleri hem yatay koşu düğmelerinde hem bilgi bandında kullanılır.
@@ -600,15 +613,24 @@ elif st.session_state.page == "Yarış Programı":
             age_text = str(race.get("age", meta.get("age", "")) or "").strip()
             distance_text = str(distance or "").strip()
             race_name_text = str(race_name or "").strip()
+            if not race_class_text and race_name_text:
+                race_class_text = race_name_text
             race_time_text = str(race.get("time") or race.get("start_time") or meta.get("time") or meta.get("startTime") or race.get("startTime") or "").strip()
             # Başlık sırası: koşu numarası + saat + koşu şartı; ardından ad ve pist detayları.
             # Saat, TJK verisindeki farklı olası alan adlarından alınır.
             race_time_text = str(
                 race.get("time") or race.get("start_time") or race.get("startTime") or
-                meta.get("time") or meta.get("start_time") or meta.get("startTime") or ""
+                meta.get("time") or meta.get("start_time") or meta.get("startTime") or
+                selected_race_item.get("time") or selected_race_item.get("start_time") or
+                selected_race_item.get("startTime") or ""
             ).strip()
             race_no_text = f"{selected}. KOŞU"
-            title_parts = [race_no_text, race_time_text, race_class_text, race_name_text,
+            name_is_class = (
+                race_name_text.casefold() == race_class_text.casefold()
+                if race_class_text else False
+            )
+            title_parts = [race_no_text, race_time_text, race_class_text,
+                           "" if name_is_class else race_name_text,
                            age_text, str(race.get("weight") or "").strip(),
                            distance_text, str(surface or "").strip()]
             header_text = " · ".join(x for x in title_parts if x and x != "—")
