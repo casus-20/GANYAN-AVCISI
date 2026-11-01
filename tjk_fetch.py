@@ -153,8 +153,9 @@ def _html_tables(html):
             found.append((depth, source[begin:match.end()]))
     if not found:
         return []
-    # Include both nested and outer tables; parseDaily logic will select the matching table.
-    return [item[1] for item in sorted(found, key=lambda x: (x[0], len(x[1])))]
+    # Keep document order. Sorting by nesting depth/length scrambled race order
+    # on TJK pages where each race is wrapped in nested layout tables.
+    return [item[1] for item in sorted(found, key=lambda x: source.find(x[1]))]
 
 def _html_rows(table):
     return re.findall(r"<tr\b[^>]*>[\s\S]*?</tr>",table or "",flags=re.I)
@@ -167,7 +168,7 @@ def _at_id(row):
     return m.group(1) if m else None
 
 def _parse_tjk_daily(html):
-    races = []
+    races_by_no = {}
     source = html or ""
     for table in _html_tables(source):
         rows = _html_rows(table)
@@ -232,23 +233,34 @@ def _parse_tjk_daily(html):
             continue
 
         table_pos = source.find(table)
-        before = _html_text(source[max(0, table_pos - 35000):table_pos])
-        markers = list(re.finditer(r"(\d{1,2}\.\s*Koşu)\s+([0-2]?\d[:.][0-5]\d)", before, re.I))
-        race_time = markers[-1].group(2).replace(".", ":") if markers else ""
+        header_html = rows[header_index] if 0 <= header_index < len(rows) else ""
+        header_pos = table.find(header_html) if header_html else -1
+        table_prefix = table[:header_pos] if header_pos >= 0 else ""
+        before = _html_text(source[max(0, table_pos - 50000):table_pos] + table_prefix)
+        markers = list(re.finditer(r"(\d{1,2})\.\s*Koşu\s+([0-2]?\d[:.][0-5]\d)", before, re.I))
+        marker = markers[-1] if markers else None
+        race_no = int(marker.group(1)) if marker else (len(races_by_no) + 1)
+        race_time = marker.group(2).replace(".", ":") if marker else ""
         detail = ""
-        if markers:
-            detail = before[markers[-1].end():]
+        if marker:
+            detail = before[marker.end():]
             detail = re.split(r"\s+(?:İkramiye|At Sahibi Primi|Yetiştiricilik Primi|N\s+At İsmi|Forma\s+N\s+At İsmi)", detail, 1, flags=re.I)[0][:1800].strip(" ,;:-")
         dm = list(re.finditer(r"(\d{3,4})\s*(?:m)?\s*(Kum|Çim|Sentetik|Fiber Sand|Turf|Polytrack)\b", detail, re.I))
-        races.append({
-            "no": len(races) + 1, "time": race_time,
-            "name": detail or f"Koşu {len(races) + 1}",
+        parsed_race = {
+            "no": race_no, "time": race_time,
+            "name": detail or f"Koşu {race_no}",
             "meta": {"distance": int(dm[-1].group(1)) if dm else None,
                      "surface": dm[-1].group(2) if dm else "",
                      "raceName": detail, "detail": detail, "raw": before[-5000:]},
             "horses": horses,
-        })
-    return races
+        }
+        # TJK layout tables can contain the same race as nested wrappers.
+        # Keep one record per actual race number, preferring the fullest horse table.
+        current = races_by_no.get(race_no)
+        if current is None or len(horses) > len(current.get("horses", [])):
+            races_by_no[race_no] = parsed_race
+
+    return [races_by_no[n] for n in sorted(races_by_no)]
 
 
 def _parse_tjk_workouts(html):
@@ -369,45 +381,98 @@ def _discover_tjk_venues(date_value, timeout=25):
     return list(found)
 
 
-def _fetch_tjk_daily(date_value,city,timeout=45):
-    from urllib.parse import quote
-    iso=normalize_date(date_value); city=normalize_text(city)
-    cid = DYNAMIC_CITY_IDS.get(city) or CITY_IDS.get(city)
+def _fetch_tjk_daily(date_value, city, timeout=45):
+    from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
+
+    iso = normalize_date(date_value)
+    city = normalize_text(city)
+    city_key = _canonical_city_name(city)
+    cid = DYNAMIC_CITY_IDS.get(city) or DYNAMIC_CITY_IDS.get(city_key) or CITY_IDS.get(city)
+
     if not cid:
         _discover_tjk_venues(date_value, timeout=min(timeout, 25))
-        cid = DYNAMIC_CITY_IDS.get(city) or CITY_IDS.get(city)
+        cid = DYNAMIC_CITY_IDS.get(city) or DYNAMIC_CITY_IDS.get(city_key) or CITY_IDS.get(city)
     if not cid:
         raise ValueError(f"Bu tarihte TJK programında hipodrom bulunamadı: {city}")
-    dmy=datetime.strptime(iso,"%Y-%m-%d").strftime("%d/%m/%Y")
-    discovered_url = DYNAMIC_VENUE_URLS.get(city) or DYNAMIC_VENUE_URLS.get(_canonical_city_name(city))
-    urls = []
-    if discovered_url:
-        # Ana günlük program sayfasının verdiği hipodrom bağlantısını aynen kullan.
-        from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
-        parsed = urlparse(discovered_url)
-        query = dict(parse_qsl(parsed.query, keep_blank_values=True))
-        query["QueryParameter_Tarih"] = dmy
-        query.setdefault("SehirAdi", city)
-        query.setdefault("SehirId", str(cid))
-        urls.append(urlunparse(parsed._replace(query=urlencode(query))))
-    urls.extend([
-      f"{TJK_BASE}/TR/YarisSever/Info/Sehir/GunlukYarisProgrami?QueryParameter_Tarih={quote(dmy)}&SehirAdi={quote(city)}&SehirId={cid}",
-      f"{TJK_BASE}/TR/YarisSever/Info/Page/GunlukYarisProgrami?QueryParameter_Tarih={quote(dmy)}&SehirAdi={quote(city)}&SehirId={cid}",
-      f"{TJK_BASE}/TR/YarisSever/Info/Sehir/Kayitlar?Era=today&QueryParameter_Tarih={quote(dmy)}&SehirAdi={quote(city)}&SehirId={cid}",
-    ])
-    errors=[]
-    for url in urls:
-        try:
-            r=_get_http_session().get(url,timeout=timeout,headers=_tjk_headers())
-            if r.status_code>=400: errors.append(f"HTTP {r.status_code} {url}"); continue
-            races=_parse_tjk_daily(r.text)
-            if races:
-                count=sum(len(x["horses"]) for x in races)
-                return {"ok":True,"source":"TJK Günlük Yarış Programı (doğrudan)","date":iso,"city":city,
-                        "status":r.status_code,"sourceUrl":url,"raceCount":len(races),"horseCount":count,"races":races}
-            errors.append(f"HTTP {r.status_code}, HTML tablo yapısı tanınmadı: {url}")
-        except requests.RequestException as e: errors.append(str(e))
-    raise RuntimeError("TJK günlük programı doğrudan alınamadı: "+" | ".join(errors[-4:]))
+
+    dmy = datetime.strptime(iso, "%Y-%m-%d").strftime("%d/%m/%Y")
+    discovered_url = DYNAMIC_VENUE_URLS.get(city) or DYNAMIC_VENUE_URLS.get(city_key)
+
+    # Ana günlük program sayfası yalnızca hipodrom keşfi içindir.
+    # Yarış verisi mutlaka seçilen hipodromun Info/Sehir sayfasından alınır.
+    parsed = urlparse(discovered_url) if discovered_url else None
+    path = parsed.path if parsed and "/Info/Sehir/" in parsed.path else "/TR/YarisSever/Info/Sehir/GunlukYarisProgrami"
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True)) if parsed else {}
+    query.update({
+        "QueryParameter_Tarih": dmy,
+        "SehirAdi": city,
+        "SehirId": str(cid),
+    })
+    url = urlunparse(("https", "www.tjk.org", path, "", urlencode(query), ""))
+
+    try:
+        response = _get_http_session().get(url, timeout=timeout, headers=_tjk_headers())
+        if response.status_code >= 400:
+            raise RuntimeError(f"TJK HTTP {response.status_code}: {url}")
+
+        response_parts = urlparse(response.url)
+        response_params = dict(parse_qsl(response_parts.query, keep_blank_values=True))
+        response_city = response_params.get("SehirAdi") or response_params.get("sehirAdi") or ""
+        response_city_id = response_params.get("SehirId") or response_params.get("sehirId") or ""
+        if "/Info/Sehir/" not in response_parts.path:
+            raise RuntimeError("TJK yanıtı seçilen hipodromun şehir programı sayfası değil.")
+        if response_city and _canonical_city_name(response_city) != city_key:
+            raise RuntimeError(
+                f"TJK yanıt hipodromu uyuşmuyor: istenen {city}, gelen {response_city}."
+            )
+        if response_city_id and str(response_city_id) != str(cid):
+            raise RuntimeError(
+                f"TJK şehir kimliği uyuşmuyor: istenen {cid}, gelen {response_city_id}."
+            )
+        if not response_city and not response_city_id:
+            raise RuntimeError("TJK yanıt URL'sinde seçilen hipodrom kimliği doğrulanamadı.")
+
+        page_text = _html_text(response.text or "")
+        date_tokens = re.findall(r"\b\d{1,2}[./]\d{1,2}[./]20\d{2}\b", page_text)
+        page_dates = set()
+        for token in date_tokens:
+            try:
+                page_dates.add(normalize_date(token.replace(".", "/")))
+            except Exception:
+                pass
+        if iso not in page_dates:
+            raise RuntimeError(
+                f"TJK yanıtında seçilen tarih doğrulanamadı ({dmy}); "
+                f"sayfada bulunan tarihler: {', '.join(sorted(page_dates)) or 'yok'}. "
+                "Yanlış tarih verisi engellendi."
+            )
+
+        races = _parse_tjk_daily(response.text)
+        if not races:
+            raise RuntimeError(
+                f"TJK {city} hipodromu için {dmy} tarihinde koşu tablosu ayrıştırılamadı: {url}"
+            )
+
+        races.sort(key=lambda item: int(item.get("no") or 999))
+        race_numbers = [int(item.get("no") or 0) for item in races]
+        if len(race_numbers) != len(set(race_numbers)):
+            raise RuntimeError("TJK yanıtında aynı koşu birden fazla kez bulundu; karışık veri engellendi.")
+
+        count = sum(len(item.get("horses", [])) for item in races)
+        return {
+            "ok": True,
+            "source": "TJK Günlük Yarış Programı (doğrudan)",
+            "date": iso,
+            "city": city,
+            "status": response.status_code,
+            "sourceUrl": response.url,
+            "raceCount": len(races),
+            "horseCount": count,
+            "races": races,
+        }
+    except requests.RequestException as exc:
+        raise RuntimeError(f"TJK bağlantı hatası ({city}, {dmy}): {exc}") from exc
+
 
 def fetch_TJK(date_value: Any, city: str, timeout: int = 45) -> Dict[str, Any]:
     """Geriye dönük uyumluluk: TJK yerine doğrudan TJK günlük program sayfası."""
@@ -924,7 +989,7 @@ _HISTORY_KEYS = {
     "date": ["date", "tarih", "Tarih", "Date"],
     "city": ["city", "şehir", "sehir", "hipodrom", "Hipodrom", "Hipo"],
     "distance": ["distance", "mesafe", "Msf", "msf", "Msf."],
-    "surface": ["surface", "pist", "Pist", "track", "zemin", "Surface"],
+    "surface": ["surface", "pist", "Pist", "track", "zemin", "Surface", "trackSurface", "track_surface", "surfaceType", "surface_type", "pistTuru", "pist_turu", "pistAdi", "pist_adi", "Zemin", "zeminTuru", "zemin_turu"],
     "post": ["post", "start", "St", "st", "kulvar", "Kulvar"],
     "time": ["time", "derece", "Derece", "finishTime", "süre", "Sure"],
     "weight": ["weight", "kilo", "Kilo", "siklet", "Sıklet"],
