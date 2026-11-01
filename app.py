@@ -93,16 +93,10 @@ section[data-testid="stSidebar"] .stButton>button:hover{{background:#343d61!impo
 .race-program-scroll{{overflow-x:auto!important;overflow-y:auto!important;max-width:100%!important}}
 .race-program-table{{width:100%!important;min-width:1320px!important;table-layout:fixed!important;border-collapse:collapse!important;background:#f1f1ef!important;color:#111!important;font-size:11px!important;font-weight:900!important;text-transform:uppercase!important}}
 .race-program-table th{{background:#30343b!important;color:#fff!important;font-size:10px!important;font-weight:900!important;padding:7px 4px!important;text-align:left!important;border-right:1px solid #59616a!important;white-space:nowrap!important}}
-.race-program-table td{{padding:4px 4px!important;border-bottom:1px solid #c9cdd2!important;color:#111!important;font-size:11px!important;font-weight:900!important;line-height:1.08!important;overflow-wrap:anywhere!important;vertical-align:middle!important}}
-.race-program-table tbody tr{{height:43px!important;min-height:43px!important}}
+.race-program-table td{{padding:5px 4px!important;border-bottom:1px solid #c9cdd2!important;color:#111!important;font-size:11px!important;font-weight:900!important;line-height:1.08!important;overflow-wrap:anywhere!important;vertical-align:middle!important}}
+.race-program-table tbody tr{{height:48px!important;min-height:48px!important}}
 .race-program-table td.rp-eid-cell{{white-space:nowrap!important;overflow:visible!important}}
-.race-program-table .rp-eid-value{{display:inline-block;position:relative;color:#d40000!important;font-weight:900!important;cursor:help!important;border-bottom:1px dotted #d40000!important}}
-.race-program-table .rp-eid-value[data-tooltip]:not([data-tooltip=""])::after{{content:attr(data-tooltip);display:none;position:absolute;left:50%;bottom:calc(100% + 8px);transform:translateX(-50%);z-index:99999;min-width:190px;max-width:340px;width:max-content;white-space:pre-line;overflow-wrap:anywhere;background:#101827;color:#fff;border:1px solid #8d9ab3;border-radius:7px;padding:8px 10px;font-size:11px;font-weight:700;line-height:1.4;text-transform:none;box-shadow:0 5px 18px #0009;pointer-events:none}}
-.race-program-table .rp-eid-value[data-tooltip]:not([data-tooltip=""]):hover::after{{display:block}}
-.race-program-table .rp-weight-base{{color:#111!important;font-weight:900!important}}
-.race-program-table .rp-weight-extra{{color:#d00000!important;font-weight:900!important;margin-left:3px}}
-.race-program-table .rp-st-number{{color:#111!important;font-weight:900!important}}
-.race-program-table .rp-st-ts{{color:#d00000!important;font-weight:900!important;margin-left:3px}}
+.race-program-table .rp-eid-value{{display:inline-block;color:#d40000!important;font-weight:900!important;cursor:help!important;border-bottom:1px dotted #d40000!important}}
 .race-program-table tbody tr:nth-child(odd) td{{background:#e7e7e5!important}}
 .race-program-table tbody tr:nth-child(even) td{{background:#f7f7f5!important}}
 .race-program-table tbody tr:hover td{{background:#dceaf4!important}}
@@ -413,7 +407,7 @@ if st.session_state.page == "Ana Sayfa":
         table(pd.DataFrame(d["program"]), 210)
 
 elif st.session_state.page == "Yarış Programı":
-    from tjk_fetch import get_active_cities as _get_tjk_active_cities, get_program as _get_tjk_program
+    from fetch import get_tjk_active_cities as _get_tjk_active_cities, get_tjk_program as _get_tjk_program
 
     hero(True)
     f1, f2 = st.columns([1.1, 1.2], gap="small")
@@ -563,32 +557,6 @@ elif st.session_state.page == "Yarış Programı":
                 import html as _html
                 import re as _re
 
-                def _format_program_weight(raw_weight):
-                    raw = str(raw_weight or "").strip()
-                    if not raw:
-                        return "—", ""
-                    # TJK kilo hücreleri: "50 +2 FAZLA KİLO" / "58 +0.20 FAZLA KİLO".
-                    m = _re.search(r"(\d{2}(?:[,.]\d+)?)\s*(?:kg)?\s*([+]\s*\d+(?:[,.]\d+)?)?", raw, _re.I)
-                    if not m:
-                        return raw, ""
-                    base = m.group(1).replace(".", ",")
-                    extra = (m.group(2) or "").replace(" ", "").replace(".", ",")
-                    if extra:
-                        extra = _re.sub(r",0+$", "", extra)
-                    return base, extra
-
-                def _format_program_st(raw_st):
-                    raw = str(raw_st or "").strip()
-                    if not raw:
-                        return "", False
-                    m = _re.search(r"\d+", raw)
-                    if not m:
-                        return raw, False
-                    # TJK'nın "DS TERCİHLİ START" ibaresini tabloda kısa "TS" olarak göster.
-                    if _re.search(r"tercihli\s*start|\bDS\b|\bTS\b", raw, _re.I):
-                        return m.group(0), True
-                    return raw, False
-
                 def _split_program_horse_name(horse):
                     raw = str(horse.get("name") or horse.get("at_ismi") or "").strip()
                     raw = _re.sub(r"\s*Image.*$", "", raw, flags=_re.I)
@@ -613,21 +581,17 @@ elif st.session_state.page == "Yarış Programı":
                     horse_name, horse_no, equipment = _split_program_horse_name(h)
                     owner = str(h.get("owner") or h.get("sahip") or "").strip()
                     trainer = str(h.get("trainer") or h.get("antrenor") or "").strip()
-                    weight_base, weight_extra = _format_program_weight(h.get("weight") or h.get("siklet"))
-                    st_value, st_is_ts = _format_program_st(h.get("st") or "")
                     display_rows.append({
                         "No": horse_no or str(h.get("no") or i),
                         "At İsmi": horse_name,
                         "Yaş": h.get("age") or h.get("yas") or "",
                         "Orijin (Baba-Anne)": h.get("origin") or h.get("orijin") or "",
-                        "Kilo": weight_base,
-                        "_weight_extra": weight_extra,
+                        "Kilo": h.get("weight") or h.get("siklet") or "",
                         "Jokey": h.get("jockey") or h.get("jokey") or "",
                         "Sahip / Antrenör": "",
                         "_owner": owner,
                         "_trainer": trainer,
-                        "St": st_value,
-                        "_st_is_ts": st_is_ts,
+                        "St": h.get("st") or "",
                         "HP": h.get("hp") or "",
                         "Son 6 Y.": h.get("form") or h.get("last6") or "",
                         "KGS": h.get("kgs") or "",
@@ -672,14 +636,6 @@ elif st.session_state.page == "Yarış Programı":
                             safe = f'<span class="rp-origin-sire">{sire}</span>'
                             if dam:
                                 safe += f'<br><span class="rp-origin-dam">{dam}</span>'
-                        elif key == "Kilo":
-                            extra = _html.escape(str(row.get("_weight_extra", "") or ""))
-                            safe = f'<span class="rp-weight-base">{safe}</span>'
-                            if extra:
-                                safe += f'<span class="rp-weight-extra">{extra}</span>'
-                        elif key == "St":
-                            if row.get("_st_is_ts"):
-                                safe = f'<span class="rp-st-number">{safe}</span><span class="rp-st-ts">TS</span>'
                         elif key == "Jokey":
                             safe = f'<span class="rp-jockey">{safe}</span>'
                         elif key == "Sahip / Antrenör":
@@ -694,7 +650,7 @@ elif st.session_state.page == "Yarış Programı":
                             eid_info = str(row.get("_eid_info", "") or "").strip()
                             # Tooltip içeriği güvenli biçimde HTML attribute'a yazılır.
                             tooltip = _html.escape(eid_info, quote=True)
-                            safe = f'<span class="rp-eid-value" data-tooltip="{tooltip}">{safe}</span>'
+                            safe = f'<span class="rp-eid-value" title="{tooltip}">{safe}</span>'
                             cells.append(f'<td class="rp-eid-cell">{safe}</td>')
                         else:
                             cells.append(f"<td>{safe}</td>")
