@@ -4530,7 +4530,8 @@ def render():
                 const parts = String(params.value ?? '').split(/\r?\n/).filter(x => x !== '');
                 const name = document.createElement('span');
                 name.textContent = parts.length ? parts[0] : '';
-                name.style.color = '#c90000';
+                // At adı lacivert; takı ve yarış sonucu ayrı span'lerde gösterilir.
+                name.style.color = '#071b69';
                 name.style.fontWeight = '900';
                 name.style.fontSize = '12px';
                 name.style.whiteSpace = 'nowrap';
@@ -4545,9 +4546,9 @@ def render():
                 if (parts.length > 1 && parts[1].trim()) {
                     const gear = document.createElement('span');
                     gear.textContent = parts.slice(1).join(' ');
-                    gear.style.color = '#16833b';
+                    gear.style.color = '#d00000';
                     gear.style.fontWeight = '900';
-                    gear.style.fontSize = '10.5px';
+                    gear.style.fontSize = '9px';
                     gear.style.whiteSpace = 'normal';
                     gear.style.flex = '0 0 auto';
                     gear.style.maxWidth = '100%';
@@ -4563,9 +4564,9 @@ def render():
                     wrap.style.flex = '0 0 auto';
                     const m = result.match(/^\((.*?)\)$/);
                     if (m) {
-                        const l = document.createElement('span'); l.textContent = '('; l.style.color = '#1565c0';
-                        const v = document.createElement('span'); v.textContent = m[1]; v.style.color = '#126b2f';
-                        const rr = document.createElement('span'); rr.textContent = ')'; rr.style.color = '#1565c0';
+                        const l = document.createElement('span'); l.textContent = '('; l.style.color = '#16833b';
+                        const v = document.createElement('span'); v.textContent = m[1]; v.style.color = '#075b25';
+                        const rr = document.createElement('span'); rr.textContent = ')'; rr.style.color = '#16833b';
                         wrap.appendChild(l); wrap.appendChild(v); wrap.appendChild(rr);
                     } else {
                         wrap.textContent = result;
@@ -4989,8 +4990,8 @@ def render():
                 root.style.fontWeight = '900';
                 const text = String(params.value ?? '');
                 const surfaces = String((params.data && params.data._form_surfaces) || '').split('|');
-                const chars = Array.from(text);
-                chars.forEach((ch, i) => {
+                const tokens = text.match(/\d+|[^\s]/g) || [];
+                tokens.forEach((ch, i) => {
                     const span = document.createElement('span');
                     span.textContent = ch;
                     span.style.fontWeight = '900';
@@ -4998,16 +4999,25 @@ def render():
                     const surf = rawSurf.toLowerCase()
                         .replace(/ı/g,'i').replace(/ş/g,'s').replace(/ğ/g,'g')
                         .replace(/ü/g,'u').replace(/ö/g,'o').replace(/ç/g,'c');
-                    if (/^(c|cim|grass|turf)(?:[:\s-]|$)/.test(surf) || surf.includes('cim') || surf.includes('grass') || surf.includes('turf')) span.style.color = '#138a36';
-                    else if (/^(k|kum|dirt)(?:[:\s-]|$)/.test(surf) || surf.includes('kum') || surf.includes('dirt')) span.style.color = '#8b5a2b';
-                    else if (/^(s|sentetik|synthetic)(?:[:\s-]|$)/.test(surf) || surf.includes('sentetik') || surf.includes('synthetic') || surf.includes('polytrack') || surf.includes('fiber')) span.style.color = '#7b2cbf';
-                    else span.style.color = '#000000';
+                    // Son 6 yarış sonucu, o yarışın pist türüne göre rozetlenir.
+                    // Çim=yeşil, kum=kahverengi/turuncu, sentetik=mavi; bilinmeyen=gri.
+                    let bg = '#777777';
+                    if (/^(c|cim|grass|turf)(?:[:\s-]|$)/.test(surf) || surf.includes('cim') || surf.includes('grass') || surf.includes('turf')) bg = '#168a3a';
+                    else if (/^(k|kum|dirt)(?:[:\s-]|$)/.test(surf) || surf.includes('kum') || surf.includes('dirt')) bg = '#b86a1b';
+                    else if (/^(s|sentetik|synthetic)(?:[:\s-]|$)/.test(surf) || surf.includes('sentetik') || surf.includes('synthetic') || surf.includes('polytrack') || surf.includes('fiber')) bg = '#2878c7';
+                    span.style.display = 'inline-flex';
+                    span.style.alignItems = 'center';
+                    span.style.justifyContent = 'center';
+                    span.style.minWidth = '15px';
+                    span.style.height = '20px';
+                    span.style.padding = '0 4px';
+                    span.style.marginRight = '2px';
+                    span.style.borderRadius = '4px';
+                    span.style.backgroundColor = bg;
+                    span.style.color = '#ffffff';
+                    span.style.fontSize = '11px';
+                    span.style.lineHeight = '20px';
                     root.appendChild(span);
-                    if (i < chars.length - 1) {
-                        const space = document.createElement('span');
-                        space.textContent = ' ';
-                        root.appendChild(space);
-                    }
                 });
                 this.eGui = root;
             }
