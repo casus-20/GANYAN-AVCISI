@@ -195,15 +195,26 @@ def _at_id(row):
 def _parse_tjk_daily(html):
     races_by_no = {}
     source = html or ""
-    for table in _html_tables(source):
+    tables = _html_tables(source)
+    # Bazı TJK sayfa sürümlerinde yarış satırları tablo kapsayıcısı dışında
+    # veya hatalı/nested HTML içinde gelebiliyor. Bu durumda tüm sayfadaki
+    # tr satırlarını tek bir aday tablo olarak tara.
+    if not tables and _html_rows(source):
+        tables = [source]
+    for table in tables:
         rows = _html_rows(table)
         header = None
         header_index = -1
         for row_index, row in enumerate(rows):
             cells = _html_cells(row)
             normalized = [_fold_tr(x) for x in cells]
-            has_name = any(("at ismi" in x) or ("at adi" in x) or ("horse name" in x) for x in normalized)
-            has_no = any(x in ("n", "no", "s", "numara") for x in normalized)
+            has_name = any(
+                ("at ismi" in x) or ("at adi" in x) or ("horse name" in x)
+                or ("at / orijin" in x) or ("at/orijin" in x)
+                or ("at adi / orijin" in x) or ("at ismi / orijin" in x)
+                for x in normalized
+            )
+            has_no = any(x in ("n", "no", "s", "numara", "forma no") for x in normalized)
             # TJK sayfa sürümlerinde HP/Son 6 sütunları gizlenebiliyor;
             # at adı + numara başlığı program tablosunu tanımak için yeterlidir.
             if has_name and has_no:
@@ -218,7 +229,8 @@ def _parse_tjk_daily(html):
             return next((i for i, value in enumerate(folded_header) if re.search(pattern, value, re.I)), -1)
 
         idx = {
-            "no": ix(r"^(n|no|s|numara)$"), "name": ix(r"at ismi|at adi|horse name"),
+            "no": ix(r"^(n|no|s|numara|forma no)$"),
+            "name": ix(r"at ismi|at adi|horse name|at\s*/\s*orijin|at/orijin"),
             "age": ix(r"^(yas|age)$"), "origin": ix(r"orijin|origin"),
             "weight": ix(r"siklet|weight"), "jockey": ix(r"^(jokey|jockey)$"),
             "owner": ix(r"^(sahip|owner)$"), "trainer": ix(r"antrenor|trainer"),
