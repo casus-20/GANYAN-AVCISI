@@ -379,9 +379,13 @@ def _discover_tjk_venues(date_value, timeout=25):
             # Bazı TJK sürümlerinde şehir linkleri script/JSON içine gömülüyor.
             # Bu nedenle sayfa kaynağındaki URL benzeri parçaları da tara.
             for match in re.finditer(r"(?:href\s*=\s*['\"]|(?:\\/)?TR\\/)[^'\"]{0,1200}(?:GunlukYarisProgrami|Kayitlar)[^'\"]{0,1200}", html, re.I):
-                raw = match.group(0).strip().strip("'\"")
-                raw = raw.replace("\\/", "/").replace("&amp;", "&").replace("\u0026", "&")
-                candidates.append((raw, ""))
+                raw = match.group(0).strip()
+                # Remove malformed script-match attribute prefix href=".
+                raw = re.sub(r"""^href\s*=\s*[\'"]""", "", raw, flags=re.I)
+                raw = raw.strip().strip("\'\"")
+                raw = raw.replace("\\\\/", "/").replace("&amp;", "&").replace("\\u0026", "&")
+                if raw.startswith(("http://", "https://", "/")):
+                    candidates.append((raw, ""))
 
             for href, link_text in candidates:
                 absolute = urljoin(TJK_BASE, href)
@@ -437,7 +441,13 @@ def _fetch_tjk_daily(date_value, city, timeout=45):
     # Ana günlük program sayfası yalnızca hipodrom keşfi içindir.
     # Yarış verisi mutlaka seçilen hipodromun Info/Sehir sayfasından alınır.
     parsed = urlparse(discovered_url) if discovered_url else None
-    path = parsed.path if parsed and "/Info/Sehir/" in parsed.path else "/TR/Kurumsal/Info/Sehir/GunlukYarisProgrami"
+    # Reject malformed values such as /href="/TR/...; use the canonical city endpoint.
+    valid_city_path = bool(
+        parsed
+        and parsed.path.startswith("/TR/Kurumsal/Info/Sehir/")
+        and not parsed.path.lower().startswith("/href=")
+    )
+    path = parsed.path if valid_city_path else "/TR/Kurumsal/Info/Sehir/GunlukYarisProgrami"
     query = dict(parse_qsl(parsed.query, keep_blank_values=True)) if parsed else {}
     query.update({
         "Era": "today" if iso == datetime.now().strftime("%Y-%m-%d") else "",
@@ -447,17 +457,10 @@ def _fetch_tjk_daily(date_value, city, timeout=45):
     })
     if not query.get("Era"):
         query.pop("Era", None)
-    # TJK resmi bağlantılarında tarih GG/AA/YYYY olarak ham "/" ile gönderilir.
-    # urlencode() varsayılan olarak "/" karakterini %2F yapar; TJK/WAF bu
-    # kodlanmış URL'yi 403 ile reddedebiliyor. Slash karakterini koru.
-    url = urlunparse(("https", "www.tjk.org", path, "", urlencode(query, safe="/"), ""))
+    url = urlunparse(("https", "www.tjk.org", path, "", urlencode(query), ""))
 
     try:
-        request_headers = _tjk_headers()
-        request_headers["Referer"] = (
-            f"{TJK_BASE}/TR/Kurumsal/Info/Page/GunlukYarisProgrami?QueryParameter_Tarih={dmy}"
-        )
-        response = _get_http_session().get(url, timeout=timeout, headers=request_headers)
+        response = _get_http_session().get(url, timeout=timeout, headers=_tjk_headers())
         if response.status_code >= 400:
             raise RuntimeError(f"TJK HTTP {response.status_code}: {url}")
 
