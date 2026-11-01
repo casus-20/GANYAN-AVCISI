@@ -145,6 +145,15 @@ def _tjk_parse_horse_tables(html):
         age=age_match.group(0).strip() if age_match else ""
         meta[no]={"no":no,"time":tm.group(0) if tm else "","name":name,"class":cls,"age":age,"distance":f"{dist.group(1)} m" if dist else "","surface":surf.group(1).title() if surf else "","prize":f"{prize.group(1)} ₺" if prize else ""}
 
+    # TJK programında eküri bilgisi çoğunlukla tablonun altında
+    # [(1)AT ADI,(5)DİĞER AT] eküridir. biçiminde yayımlanır.
+    ekuri_names = set()
+    for group in re.findall(r"\[([^\]]+)\]\s*ek[uü]r[iı]dir", page_text, flags=re.I):
+        for entry in re.split(r"\s*,\s*", group):
+            entry = re.sub(r"^\(?\d+\)?\s*", "", entry).strip(" ()")
+            if entry:
+                ekuri_names.add(_tjk_norm(entry))
+
     tables=[]
     for table in soup.find_all("table"):
         hidx,hcells=_tjk_find_header_row(table)
@@ -192,10 +201,18 @@ def _tjk_parse_horse_tables(html):
                             if cleaned and cleaned not in info_parts:
                                 info_parts.append(cleaned)
                 eid_info = " | ".join(info_parts)
+            raw_horse_name = v("atisimi","atismi","atadi")
+            status_is_nonrunner = bool(re.search(r"\(\s*ko[sş]maz\s*\)", raw_horse_name, flags=re.I))
+            clean_horse_name = re.sub(r"\s*\(\s*ko[sş]maz\s*\)", "", raw_horse_name, flags=re.I).strip()
+            name_for_ekuri = re.sub(r"\s*\(\d{1,2}\)", "", clean_horse_name)
+            name_for_ekuri = re.sub(r"\s*image\s*$", "", name_for_ekuri, flags=re.I).strip()
+            is_ekuri = _tjk_norm(name_for_ekuri) in ekuri_names
             horses.append({
                 "_at_id": at_id,
+                "Koşmaz": status_is_nonrunner,
+                "Eküri": is_ekuri,
                 "EİD Bilgi": eid_info,
-                "Sıra":v("n","sira","forma"),"At Adı":v("atisimi","atismi","atadi"),
+                "Sıra":v("n","sira","forma"),"At Adı":clean_horse_name,
                 "Yaş / Cins":v("yas","yascins","yascinsiyet"),"Orijin (Baba - Anne)":v("orijinbabaanne","orijinbabaannen","orijinbabaannesi","orijin"),
                 "Sıklet":v("siklet","kilo"),"Jokey":v("jokey"),"Sahip":v("sahip","atsahibi"),
                 "Antrenör":v("antrenor"),"St.":v("st","start"),"HP":v("hp"),"Son 6 Y.":v("son6y","son6yaris","form"),
