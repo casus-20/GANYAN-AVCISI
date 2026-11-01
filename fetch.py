@@ -216,7 +216,7 @@ def _tjk_parse_horse_tables(html):
                 "Yaş / Cins":v("yas","yascins","yascinsiyet"),"Orijin (Baba - Anne)":v("orijinbabaanne","orijinbabaannen","orijinbabaannesi","orijin"),
                 "Sıklet":v("siklet","kilo"),"Jokey":v("jokey"),"Sahip":v("sahip","atsahibi"),
                 "Antrenör":v("antrenor"),"St.":v("st","start"),"HP":v("hp"),"Son 6 Y.":v("son6y","son6yaris","form"),
-                "KGS":v("kgs"),"EİD":v("eniyid","eniyiderece","eid"),"Sabit Oran":v("sabit oran","oran"),
+                "KGS":v("kgs"),"s20":v("s20","son20","son20y","son20yaris","son20kosu","son20kosular"),"EİD":v("eniyid","eniyiderece","eid"),"Sabit Oran":v("sabit oran","oran"),
                 "Muhtemel Ganyan":v("gny","ganyan")})
         race=meta[no]; race["runners"]=len(horses)
         result[no]={"race":race,"horses":horses,
@@ -393,7 +393,7 @@ def get_tjk_program(date_value, city):
                 "jockey": h.get("Jokey") or "", "owner": h.get("Sahip") or "",
                 "trainer": h.get("Antrenör") or "", "st": h.get("St.") or "",
                 "hp": h.get("HP") or "", "last6": h.get("Son 6 Y.") or "",
-                "kgs": h.get("KGS") or "", "bestTime": h.get("EİD") or "",
+                "kgs": h.get("KGS") or "", "s20": h.get("s20") or h.get("Son 20") or "", "bestTime": h.get("EİD") or "",
                 "bestInfo": h.get("EİD Bilgi") or "",
                 "odds": h.get("Muhtemel Ganyan") or h.get("Sabit Oran") or "", "agf": "",
                 "atId": h.get("_at_id") or "",
