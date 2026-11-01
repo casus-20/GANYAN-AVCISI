@@ -980,52 +980,48 @@ def _TJK_result_matches_target(data: Dict[str, Any], target_date: str, requested
 
 
 def get_active_cities(date_value: Any) -> List[str]:
-    """Seçilen tarihte gerçekten koşusu bulunan hipodromları döndürür.
+    """TJK günlük programındaki gerçek hipodrom bağlantılarını döndürür.
 
-    TJK günlük program ana sayfasındaki hipodrom linkleri zaman zaman HTML
-    yapısı/URL biçimi değiştiği için ayrıştırılamayabiliyor. Eski davranışta
-    bu durumda doğrudan [] dönülüyor ve Yarış Analizi ekranı hiç açılmıyordu.
-    Önce dinamik linkler keşfedilir; ardından bilinen yerli hipodromlar da
-    aday havuzuna eklenir. Her aday yine _fetch_tjk_daily ile tarih, hipodrom
-    kimliği ve gerçek yarış tablosu doğrulamasından geçer. Böylece sabit liste
-    ekranda gösterilmez; yalnızca seçilen tarihte programı bulunanlar döner.
-    Dinamik keşfedilen yabancı hipodromlar da korunur.
+    Günlük program ana sayfasındaki şehir bağlantıları zaten TJK'nın o tarih
+    için yayımladığı programları temsil eder. Önceki sürüm bu bağlantıları
+    bulduktan sonra aynı anda 10 ayrı şehir sayfasına tekrar istek gönderiyor;
+    TJK tarafındaki eşzamanlı istek/oturum sınırlamaları yüzünden tüm kontroller
+    başarısız olabiliyor ve ekranda hatalı biçimde hiç hipodrom yok deniyordu.
+    Bu nedenle keşfedilen resmi program bağlantıları doğrudan kullanılır.
+    Keşif sayfası bağlantı vermezse bilinen yerli hipodromlar tek tek kontrol
+    edilir; paralel istek gönderilmez.
     """
     target = normalize_date(date_value)
 
+    # 1) Resmi günlük program ana sayfasındaki şehir linkleri birincil kaynaktır.
     discovered = _discover_tjk_venues(target, timeout=25) or []
-
-    # Dinamik keşif TJK sayfa değişikliği nedeniyle boş/kısmi kalırsa yerli
-    # hipodromları doğrudan kendi TJK şehir ID'leriyle doğrula.
-    candidates = []
+    active = []
     seen = set()
-    for city in list(discovered) + list(CITY_IDS.keys()):
+    for city in discovered:
         canonical = _canonical_city_name(city)
         key = _fold_tr(canonical)
-        if key and key not in seen:
+        if canonical and key not in seen:
             seen.add(key)
-            candidates.append(canonical)
+            active.append(canonical)
 
-    if not candidates:
-        return []
+    # TJK ana sayfası program linklerini verdiğinde bunlar doğrudan kullanılır.
+    # Her linkin href bilgisi DYNAMIC_VENUE_URLS içinde tutulur; seçilen şehir
+    # seçildiğinde get_program aynı resmi şehir URL'sinden atları çeker.
+    if active:
+        return active
 
-    def check(city):
+    # 2) Ana sayfa linkleri boşsa yerli merkezleri sırayla sorgula.
+    # Altı/on eşzamanlı istek TJK'nın geçici engellemesine yol açabildiğinden
+    # ThreadPoolExecutor kullanılmıyor.
+    for city in CITY_IDS:
         try:
             data = _fetch_tjk_daily(target, city, timeout=35)
             races = data.get("races") if isinstance(data, dict) else None
-            # Sadece seçilen tarih/hipodrom doğrulamasından geçmiş ve en az
-            # bir gerçek koşu tablosu içeren sonuçlar aktif kabul edilir.
             if isinstance(races, list) and races:
-                return city
+                active.append(city)
         except Exception:
-            return None
-        return None
+            continue
 
-    with ThreadPoolExecutor(max_workers=6) as executor:
-        active = [city for city in executor.map(check, candidates) if city]
-
-    # Sıralamayı TJK'nın dinamik sayfa sırasına göre koru; fallback şehirler
-    # ise CITY_IDS tanım sırasıyla listenin devamına eklenir.
     return active
 
 
