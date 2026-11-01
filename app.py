@@ -3,7 +3,8 @@ import base64
 import re
 import streamlit as st
 import pandas as pd
-from fetch import get_dashboard_data, get_tjk_race_program
+from fetch import get_dashboard_data, get_tjk_race_program, get_tjk_horse_history
+from bizim_skor_model import calculate_bizim_ranking
 
 BASE = Path(__file__).parent
 
@@ -473,6 +474,92 @@ elif st.session_state.page == "Yarış Programı":
             elif tab=="Muhtemel Ganyan": table(pd.DataFrame(detail.get("probable_odds",[])),650)
             elif tab=="Geçmiş Koşular": table(pd.DataFrame(detail.get("past_runs",[])),650)
             else: table(pd.DataFrame(detail.get("gallops",[])),650)
+
+elif st.session_state.page == "Yarış Analizi":
+    hero(True)
+    st.markdown("### 🧠 YARIŞ ANALİZ MERKEZİ")
+    a1, a2 = st.columns([1.1, 1.2], gap="small")
+    with a1:
+        with st.container(border=True):
+            analysis_date = st.date_input("Yarış Tarihi", value=pd.Timestamp.today().date(), format="DD.MM.YYYY", key="analysis_tjk_date")
+    @st.cache_data(ttl=300, show_spinner=False)
+    def _analysis_program(date_text):
+        return get_tjk_race_program(date_text)
+    try:
+        with st.spinner("TJK yarış programı alınıyor..."):
+            pdata = _analysis_program(analysis_date.strftime("%d/%m/%Y"))
+    except Exception as exc:
+        st.error("TJK yarış programı alınamadı.")
+        st.caption(f"{type(exc).__name__}: {exc}")
+        st.stop()
+    cities = pdata.get("tracks", [])
+    if not cities:
+        st.warning("Seçilen tarihte TJK programı bulunamadı.")
+        st.stop()
+    with a2:
+        with st.container(border=True):
+            city = st.selectbox("Hipodrom", cities, key="analysis_tjk_city")
+    races = pdata.get("races_by_track", {}).get(city, [])
+    race_labels = {f'{r.get("no")}. Koşu  ·  {r.get("time") or "Saat yok"}  ·  {r.get("distance", "")} {r.get("surface", "")}': r for r in races}
+    if not race_labels:
+        st.info("Bu hipodrom için koşu bulunamadı.")
+        st.stop()
+    selected_label = st.selectbox("Analiz edilecek koşu", list(race_labels), key="analysis_tjk_race")
+    selected_race = race_labels[selected_label]
+    race_no = selected_race.get("no")
+    detail = pdata.get("details", {}).get(f"{city}|{race_no}", {})
+    entries = detail.get("horses", [])
+    st.markdown("#### KOŞU KÜNYESİ")
+    with st.container(border=True):
+        m1,m2,m3,m4,m5=st.columns(5)
+        m1.metric("KOŞU", f"{race_no}. Koşu")
+        m2.metric("SAAT", selected_race.get("time") or "—")
+        m3.metric("MESAFE", selected_race.get("distance") or "—")
+        m4.metric("PİST", selected_race.get("surface") or "—")
+        m5.metric("AT SAYISI", len(entries))
+    st.markdown("#### KATILAN ATLAR")
+    table(pd.DataFrame([{k:v for k,v in h.items() if not k.startswith("_")} for h in entries]), 420)
+    if st.button("🔎 TJK GEÇMİŞ YARIŞLARINI ÇEK VE ANALİZ ET", type="primary", use_container_width=True, key=f"run_tjk_analysis_{analysis_date}_{city}_{race_no}"):
+        analyzed=[]
+        history_errors=[]
+        progress=st.progress(0, text="TJK at geçmişleri alınıyor...")
+        for i,h in enumerate(entries):
+            horse=dict(h)
+            at_id=horse.get("_at_id", "")
+            try:
+                horse["_history"] = get_tjk_horse_history(at_id) if at_id else []
+                if not at_id:
+                    history_errors.append(f'{horse.get("At Adı", "At")} : TJK AtId bağlantısı bulunamadı')
+            except Exception as exc:
+                horse["_history"]=[]
+                history_errors.append(f'{horse.get("At Adı", "At")} : {exc}')
+            analyzed.append(horse)
+            progress.progress((i+1)/max(1,len(entries)), text=f'{i+1}/{len(entries)} at incelendi')
+        progress.empty()
+        race_context={"date":analysis_date.isoformat(), "surface":selected_race.get("surface", ""), "distance":selected_race.get("distance", ""), "condition":selected_race.get("class", "")}
+        rankings=calculate_bizim_ranking(analyzed, race_context)
+        rank_by_index={x["horse_index"]:x for x in rankings}
+        summary=[]
+        for i,h in enumerate(analyzed):
+            r=rank_by_index.get(i,{})
+            summary.append({"Sıra":r.get("rank", "—"), "At Adı":h.get("At Adı", ""), "BİZİM SKOR":r.get("score", "—"), "Geçmiş Yarış":len(h.get("_history", [])), "HP":h.get("HP", ""), "Jokey":h.get("Jokey", "")})
+        st.session_state["_tjk_analysis_result"]={"key":f"{analysis_date}|{city}|{race_no}","horses":analyzed,"summary":summary,"rankings":rankings,"errors":history_errors,"race":race_context}
+    result=st.session_state.get("_tjk_analysis_result")
+    expected=f"{analysis_date}|{city}|{race_no}"
+    if result and result.get("key")==expected:
+        st.markdown("#### BİZİM SKOR – PERFORMANS SIRALAMASI")
+        table(pd.DataFrame(result["summary"]), 360)
+        selected_horse_name=st.selectbox("At detayını görüntüle", [h.get("At Adı", f'At {i+1}') for i,h in enumerate(result["horses"])], key="analysis_detail_horse")
+        horse=next((h for h in result["horses"] if h.get("At Adı")==selected_horse_name), {})
+        st.markdown(f"#### {selected_horse_name.upper()} – GEÇMİŞ YARIŞLAR")
+        history=horse.get("_history", [])
+        table(pd.DataFrame(history), 430)
+        if result.get("errors"):
+            with st.expander("Veri erişim notları"):
+                for err in result["errors"]: st.write("• "+err)
+        st.info("Galop verisi için TJK'nın doğrudan erişilebilir galop sayfası henüz doğrulanmadı; bu nedenle galop tablosuna veri uydurulmadı.")
+    else:
+        st.caption("Atların geçmiş yarışları TJK'dan alındığında skor ve detay tabloları burada gösterilecek.")
 
 else:
     hero()
