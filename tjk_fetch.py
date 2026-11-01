@@ -1,4 +1,3 @@
-
 import requests
 import re
 from datetime import date, datetime
@@ -121,6 +120,7 @@ def format_date_tr(value: Any) -> str:
 
 
 TJK_BASE = "https://www.tjk.org"
+DYNAMIC_CITY_IDS = {}
 
 def _tjk_headers():
     return {"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/128 Safari/537.36",
@@ -134,11 +134,11 @@ def _html_text(value):
 
 def _html_tables(html):
     source = html or ""
-    tag_re = re.compile(r"</?table\\b[^>]*>", re.I)
+    tag_re = re.compile(r"</?table\b[^>]*>", re.I)
     stack, found = [], []
     for match in tag_re.finditer(source):
         tag = match.group(0)
-        if re.match(r"<table\\b", tag, re.I):
+        if re.match(r"<table\b", tag, re.I):
             stack.append((match.start(), len(stack)))
         elif stack:
             begin, depth = stack.pop()
@@ -159,52 +159,87 @@ def _at_id(row):
     return m.group(1) if m else None
 
 def _parse_tjk_daily(html):
-    races=[]
-    for table in _html_tables(html):
-        if not re.search(r"gunluk-GunlukYarisProgrami-AtAdi",table,re.I): continue
-        rows=_html_rows(table); header=None
-        for row in rows:
-            c=_html_cells(row)
-            if any("At İsmi" in x for x in c) and any(re.fullmatch(r"HP",x,re.I) for x in c) and any("Son 6" in x for x in c):
-                header=c; break
-        if not header: continue
+    races = []
+    source = html or ""
+    for table in _html_tables(source):
+        rows = _html_rows(table)
+        header = None
+        header_index = -1
+        for row_index, row in enumerate(rows):
+            cells = _html_cells(row)
+            normalized = [normalize_text(x).lower() for x in cells]
+            has_name = any(("at ismi" in x) or ("at adi" in x) or ("horse name" in x) for x in normalized)
+            has_hp = any(x == "hp" for x in normalized)
+            has_last6 = any("son 6" in x or "last 6" in x for x in normalized)
+            if has_name and has_hp and has_last6:
+                header = cells
+                header_index = row_index
+                break
+        if not header:
+            continue
+
         def ix(pattern):
-            return next((i for i,x in enumerate(header) if re.search(pattern,x,re.I)),-1)
-        idx={"no":ix(r"^N$|^No$|^S$"),"name":ix(r"At İsmi|Horse Name"),"age":ix(r"^Yaş$|^Age$"),
-             "origin":ix(r"Orijin|Origin"),"weight":ix(r"Sıklet|Weight"),"jockey":ix(r"^Jokey$|^Jockey$"),
-             "owner":ix(r"^Sahip$|^Owner$"),"trainer":ix(r"Antrenör|Trainer"),"st":ix(r"^St$|^Start$"),
-             "hp":ix(r"^HP$|^RT$"),"last6":ix(r"Son 6|Last 6"),"kgs":ix(r"^KGS$"),"s20":ix(r"^s20$"),
-             "best":ix(r"En İyi D\.|Best Time"),"odds":ix(r"^Gny$|Odds"),"agf":ix(r"^AGF$|Favorite"),
-             "workout":ix(r"^İdm$|^Idm$|Workout"),"lastDate":ix(r"Son Koşu Tarihi|Last Race Date")}
-        horses=[]
-        for row in rows:
-            if not re.search(r"gunluk-GunlukYarisProgrami-AtAdi",row,re.I): continue
-            c=_html_cells(row)
-            def val(k):
-                i=idx[k]; return c[i].strip() if 0<=i<len(c) else ""
-            no=re.match(r"^(\d{1,2})$",val("no"))
-            if not no: continue
-            name=val("name")
-            name=re.sub(r"\s*Image.*$","",name,flags=re.I).strip()
-            if not name: continue
-            horses.append({"no":no.group(1),"name":name,"age":val("age"),"origin":val("origin"),"weight":val("weight"),
-                "jockey":val("jockey"),"owner":val("owner"),"trainer":val("trainer"),"st":val("st"),"hp":val("hp"),
-                "last6":val("last6"),"kgs":val("kgs"),"s20":val("s20"),"bestTime":val("best"),"bestInfo":"",
-                "bestCity":"","bestDate":"","bestDistance":"","odds":val("odds"),"agf":val("agf"),
-                "workout":val("workout"),"lastDate":val("lastDate"),"atId":_at_id(row)})
-        if len(horses)<2: continue
-        pos=(html or "").find(table); before=_html_text((html or "")[max(0,pos-35000):pos])
-        markers=list(re.finditer(r"(\d{1,2}\.\s*Koşu)\s+([0-2]?\d[:.][0-5]\d)",before,re.I))
-        time=markers[-1].group(2).replace(".",":") if markers else ""
-        detail=""
+            return next((i for i, value in enumerate(header) if re.search(pattern, value, re.I)), -1)
+
+        idx = {
+            "no": ix(r"^N$|^No$|^S$"), "name": ix(r"At İsmi|At Adı|Horse Name"),
+            "age": ix(r"^Yaş$|^Age$"), "origin": ix(r"Orijin|Origin"),
+            "weight": ix(r"Sıklet|Weight"), "jockey": ix(r"^Jokey$|^Jockey$"),
+            "owner": ix(r"^Sahip$|^Owner$"), "trainer": ix(r"Antrenör|Trainer"),
+            "st": ix(r"^St$|^Start$"), "hp": ix(r"^HP$|^RT$"),
+            "last6": ix(r"Son 6|Last 6"), "kgs": ix(r"^KGS$"),
+            "s20": ix(r"^s20$"), "best": ix(r"En İyi D\\.|Best Time"),
+            "odds": ix(r"^Gny$|Odds"), "agf": ix(r"^AGF$|Favorite"),
+            "workout": ix(r"^İdm$|^Idm$|Workout"),
+            "lastDate": ix(r"Son Koşu Tarihi|Last Race Date"),
+        }
+        horses = []
+        for row in rows[header_index + 1:]:
+            cells = _html_cells(row)
+            if not cells:
+                continue
+            def val(key):
+                i = idx[key]
+                return cells[i].strip() if 0 <= i < len(cells) else ""
+            no_match = re.match(r"^(\d{1,2})$", val("no"))
+            if not no_match:
+                continue
+            name = re.sub(r"\s*Image.*$", "", val("name"), flags=re.I).strip()
+            if not name:
+                continue
+            horses.append({
+                "no": no_match.group(1), "name": name, "age": val("age"),
+                "origin": val("origin"), "weight": val("weight"),
+                "jockey": val("jockey"), "owner": val("owner"),
+                "trainer": val("trainer"), "st": val("st"), "hp": val("hp"),
+                "last6": val("last6"), "kgs": val("kgs"), "s20": val("s20"),
+                "bestTime": val("best"), "bestInfo": "", "bestCity": "",
+                "bestDate": "", "bestDistance": "", "odds": val("odds"),
+                "agf": val("agf"), "workout": val("workout"),
+                "lastDate": val("lastDate"), "atId": _at_id(row),
+            })
+        if len(horses) < 1:
+            continue
+
+        table_pos = source.find(table)
+        before = _html_text(source[max(0, table_pos - 35000):table_pos])
+        markers = list(re.finditer(r"(\d{1,2}\\.\s*Koşu)\s+([0-2]?\d[:.][0-5]\d)", before, re.I))
+        race_time = markers[-1].group(2).replace(".", ":") if markers else ""
+        detail = ""
         if markers:
-            detail=before[markers[-1].end():]
-            detail=re.split(r"\s+(?:İkramiye|At Sahibi Primi|Yetiştiricilik Primi|N\s+At İsmi|Forma\s+N\s+At İsmi)",detail,1,flags=re.I)[0][:1800].strip(" ,;:-")
-        dm=list(re.finditer(r"(\d{3,4})\s*(?:m)?\s*(Kum|Çim|Sentetik|Fiber Sand|Turf|Polytrack)\b",detail,re.I))
-        races.append({"no":len(races)+1,"time":time,"name":detail or f"Koşu {len(races)+1}",
-            "meta":{"distance":int(dm[-1].group(1)) if dm else None,"surface":dm[-1].group(2) if dm else "",
-                    "raceName":detail,"detail":detail,"raw":before[-5000:]},"horses":horses})
+            detail = before[markers[-1].end():]
+            detail = re.split(r"\s+(?:İkramiye|At Sahibi Primi|Yetiştiricilik Primi|N\s+At İsmi|Forma\s+N\s+At İsmi)", detail, 1, flags=re.I)[0][:1800].strip(" ,;:-")
+        dm = list(re.finditer(r"(\d{3,4})\s*(?:m)?\s*(Kum|Çim|Sentetik|Fiber Sand|Turf|Polytrack)\b", detail, re.I))
+        races.append({
+            "no": len(races) + 1, "time": race_time,
+            "name": detail or f"Koşu {len(races) + 1}",
+            "meta": {"distance": int(dm[-1].group(1)) if dm else None,
+                     "surface": dm[-1].group(2) if dm else "",
+                     "raceName": detail, "detail": detail, "raw": before[-5000:]},
+            "horses": horses,
+        })
     return races
+
 
 def _parse_tjk_workouts(html):
     result = []
@@ -217,15 +252,15 @@ def _parse_tjk_workouts(html):
                 return next((i for i, value in enumerate(headers) if re.search(pattern, value, re.I)), -1)
             # Require an actual distance header and a date header before accepting rows.
             indexes = {
-                "horse": ix(r"At\\s*(?:Adı|İsmi|Adi|Ismi)|Horse"),
-                "m2200": ix(r"^2200(?:\\s*m)?$"), "m2000": ix(r"^2000(?:\\s*m)?$"),
-                "m1800": ix(r"^1800(?:\\s*m)?$"), "m1600": ix(r"^1600(?:\\s*m)?$"),
-                "m1400": ix(r"^1400(?:\\s*m)?$"), "m1200": ix(r"^1200(?:\\s*m)?$"),
-                "m1000": ix(r"^1000(?:\\s*m)?$"), "m800": ix(r"^800(?:\\s*m)?$"),
-                "m600": ix(r"^600(?:\\s*m)?$"), "m400": ix(r"^400(?:\\s*m)?$"),
-                "m200": ix(r"^200(?:\\s*m)?$"), "date": ix(r"İ\\.?\\s*Tarihi|Tarih|Date"),
-                "surface": ix(r"^Pist$|Surface"), "type": ix(r"İ\\.?\\s*Türü|Tür|Type"),
-                "track": ix(r"İdman\\s*Hipodromu|İ\\.?\\s*Hip\\.?|Hipodrom|Track"),
+                "horse": ix(r"At\s*(?:Adı|İsmi|Adi|Ismi)|Horse"),
+                "m2200": ix(r"^2200(?:\s*m)?$"), "m2000": ix(r"^2000(?:\s*m)?$"),
+                "m1800": ix(r"^1800(?:\s*m)?$"), "m1600": ix(r"^1600(?:\s*m)?$"),
+                "m1400": ix(r"^1400(?:\s*m)?$"), "m1200": ix(r"^1200(?:\s*m)?$"),
+                "m1000": ix(r"^1000(?:\s*m)?$"), "m800": ix(r"^800(?:\s*m)?$"),
+                "m600": ix(r"^600(?:\s*m)?$"), "m400": ix(r"^400(?:\s*m)?$"),
+                "m200": ix(r"^200(?:\s*m)?$"), "date": ix(r"İ\\.?\s*Tarihi|Tarih|Date"),
+                "surface": ix(r"^Pist$|Surface"), "type": ix(r"İ\\.?\s*Türü|Tür|Type"),
+                "track": ix(r"İdman\s*Hipodromu|İ\\.?\s*Hip\\.?|Hipodrom|Track"),
                 "status": ix(r"Durum|Status"),
             }
             if indexes["date"] < 0 or not any(indexes[k] >= 0 for k in ("m400","m600","m800","m1000","m1200")):
@@ -237,7 +272,7 @@ def _parse_tjk_workouts(html):
                     i = indexes[key]
                     return cells[i].replace(",", ".").strip() if 0 <= i < len(cells) else ""
                 date_value = val("date")
-                if not re.fullmatch(r"\\d{2}[./]\\d{2}[./]\\d{4}", date_value):
+                if not re.fullmatch(r"\d{2}[./]\d{2}[./]\d{4}", date_value):
                     continue
                 splits = [val(k) for k in ("m2200","m2000","m1800","m1600","m1400","m1200","m1000","m800","m600","m400","m200")]
                 if not any(splits): continue
@@ -261,11 +296,56 @@ def _parse_tjk_workouts(html):
     return result[:1000]
 
 
+
+def _discover_tjk_venues(date_value, timeout=25):
+    """TJK günlük programından seçilen tarihteki yerli ve yabancı hipodromları keşfeder."""
+    from urllib.parse import urljoin, urlparse, parse_qs
+    from bs4 import BeautifulSoup
+    iso = normalize_date(date_value)
+    dmy = datetime.strptime(iso, "%Y-%m-%d").strftime("%d/%m/%Y")
+    urls = [
+        f"{TJK_BASE}/TR/YarisSever/Info/Page/GunlukYarisProgrami?QueryParameter_Tarih={quote(dmy)}",
+        f"{TJK_BASE}/TR/YarisSever/Info/Page/GunlukYarisProgrami?1=1&QueryParameter_Tarih={quote(dmy)}",
+        f"{TJK_BASE}/TR/map/Info/Page/GunlukYarisProgrami?QueryParameter_Tarih={quote(dmy)}",
+    ]
+    found = {}
+    for url in urls:
+        try:
+            response = _get_http_session().get(url, timeout=timeout, headers=_tjk_headers())
+            if response.status_code >= 400:
+                continue
+            soup = BeautifulSoup(response.text or "", "html.parser")
+            for a in soup.find_all("a", href=True):
+                href = a.get("href", "").replace("&amp;", "&")
+                if not re.search(r"GunlukYarisProgrami|Kayitlar", href, re.I):
+                    continue
+                parsed = urlparse(urljoin(TJK_BASE, href))
+                params = parse_qs(parsed.query)
+                ids = params.get("SehirId") or params.get("sehirId") or []
+                names = params.get("SehirAdi") or params.get("sehirAdi") or []
+                name = normalize_text(names[0] if names else a.get_text(" ", strip=True))
+                name = re.sub(r"\s*\([^)]*\)\s*$", "", name).strip()
+                if name and ids and str(ids[0]).isdigit():
+                    found[name] = int(ids[0])
+            if found:
+                break
+        except Exception:
+            continue
+    DYNAMIC_CITY_IDS.clear()
+    DYNAMIC_CITY_IDS.update(found)
+    return list(found)
+
+
 def _fetch_tjk_daily(date_value,city,timeout=45):
     from urllib.parse import quote
     iso=normalize_date(date_value); city=normalize_text(city)
-    if city not in CITY_IDS: raise ValueError(f"Bilinmeyen hipodrom: {city}")
-    dmy=datetime.strptime(iso,"%Y-%m-%d").strftime("%d/%m/%Y"); cid=CITY_IDS[city]
+    cid = CITY_IDS.get(city) or DYNAMIC_CITY_IDS.get(city)
+    if not cid:
+        _discover_tjk_venues(date_value, timeout=min(timeout, 25))
+        cid = CITY_IDS.get(city) or DYNAMIC_CITY_IDS.get(city)
+    if not cid:
+        raise ValueError(f"Bu tarihte TJK programında hipodrom bulunamadı: {city}")
+    dmy=datetime.strptime(iso,"%Y-%m-%d").strftime("%d/%m/%Y")
     urls=[
       f"{TJK_BASE}/TR/YarisSever/Info/Page/GunlukYarisProgrami?QueryParameter_Tarih={quote(dmy)}&SehirAdi={quote(city)}&SehirId={cid}",
       f"{TJK_BASE}/TR/YarisSever/Info/Sehir/GunlukYarisProgrami?QueryParameter_Tarih={quote(dmy)}&SehirAdi={quote(city)}&SehirId={cid}",
@@ -694,7 +774,7 @@ def normalize_program(program: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def get_supported_cities() -> List[str]:
-    return list(CITY_IDS.keys())
+    return list(dict.fromkeys(list(CITY_IDS.keys()) + list(DYNAMIC_CITY_IDS.keys())))
 
 
 def get_city_id(city: str) -> int:
@@ -754,13 +834,16 @@ def _TJK_result_matches_target(data: Dict[str, Any], target_date: str, requested
 
 def get_active_cities(date_value: Any) -> List[str]:
     target = normalize_date(date_value)
+    _discover_tjk_venues(target, timeout=25)
+    candidates = list(dict.fromkeys(list(CITY_IDS.keys()) + list(DYNAMIC_CITY_IDS.keys())))
     def check(city):
         try:
-            return city if _fetch_tjk_daily(target, city, timeout=25).get("races") else None
+            data = _fetch_tjk_daily(target, city, timeout=25)
+            return city if data.get("races") else None
         except Exception:
             return None
-    with ThreadPoolExecutor(max_TJKs=4) as executor:
-        return [x for x in executor.map(check, CITY_IDS) if x]
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        return [x for x in executor.map(check, candidates) if x]
 
 
 def TJK_health() -> Dict[str, Any]:
@@ -1170,7 +1253,7 @@ def get_horse_enrichment(
 
     # Tek at seçildiğinde iki hafif endpoint aynı anda çalışır.
     # Her istek kendi thread-local HTTP session bağlantı havuzunu kullanır.
-    with ThreadPoolExecutor(max_TJKs=2) as executor:
+    with ThreadPoolExecutor(max_workers=2) as executor:
         history_future = executor.submit(fetch_history)
         workout_future = executor.submit(fetch_workouts)
         history_data = history_future.result()
