@@ -93,7 +93,10 @@ section[data-testid="stSidebar"] .stButton>button:hover{{background:#343d61!impo
 .race-program-scroll{{overflow-x:auto!important;overflow-y:auto!important;max-width:100%!important}}
 .race-program-table{{width:100%!important;min-width:1320px!important;table-layout:fixed!important;border-collapse:collapse!important;background:#f1f1ef!important;color:#111!important;font-size:11px!important;font-weight:900!important;text-transform:uppercase!important}}
 .race-program-table th{{background:#30343b!important;color:#fff!important;font-size:10px!important;font-weight:900!important;padding:7px 4px!important;text-align:left!important;border-right:1px solid #59616a!important;white-space:nowrap!important}}
-.race-program-table td{{padding:8px 5px!important;border-bottom:1px solid #c9cdd2!important;color:#111!important;font-size:11px!important;font-weight:900!important;line-height:1.15!important;overflow-wrap:anywhere!important;vertical-align:middle!important}}
+.race-program-table td{{padding:5px 4px!important;border-bottom:1px solid #c9cdd2!important;color:#111!important;font-size:11px!important;font-weight:900!important;line-height:1.08!important;overflow-wrap:anywhere!important;vertical-align:middle!important}}
+.race-program-table tbody tr{{height:48px!important;min-height:48px!important}}
+.race-program-table td.rp-eid-cell{{white-space:nowrap!important;overflow:visible!important}}
+.race-program-table .rp-eid-value{{display:inline-block;color:#d40000!important;font-weight:900!important;cursor:help!important;border-bottom:1px dotted #d40000!important}}
 .race-program-table tbody tr:nth-child(odd) td{{background:#e7e7e5!important}}
 .race-program-table tbody tr:nth-child(even) td{{background:#f7f7f5!important}}
 .race-program-table tbody tr:hover td{{background:#dceaf4!important}}
@@ -441,7 +444,8 @@ elif st.session_state.page == "Yarış Programı":
                 key="tjk_track_select"
             )
 
-    if st.session_state.get("_tjk_program_context") != (selected_date.isoformat(), track):
+    _tjk_context_changed = st.session_state.get("_tjk_program_context") != (selected_date.isoformat(), track)
+    if _tjk_context_changed:
         st.session_state["_tjk_program_context"] = (selected_date.isoformat(), track)
         st.session_state["race_no"] = 1
     st.session_state["tjk_selected_track"] = track
@@ -449,6 +453,10 @@ elif st.session_state.page == "Yarış Programı":
     @st.cache_data(ttl=300, show_spinner=False)
     def _cached_tjk_program(date_iso, city):
         return _get_tjk_program(date_iso, city)
+
+    # Tarih/hipodrom değiştiğinde önceki seçimin bellekte kalmış programını kullanma.
+    if _tjk_context_changed:
+        _cached_tjk_program.clear()
 
     with st.spinner(f"TJK {track} programı doğrulanıyor..."):
         try:
@@ -589,6 +597,12 @@ elif st.session_state.page == "Yarış Programı":
                         "KGS": h.get("kgs") or "",
                         "s20": h.get("s20") or "",
                         "EİD": h.get("bestTime") or "",
+                        "_eid_info": "\n".join(x for x in [
+                            str(h.get("bestInfo") or h.get("best_info") or "").strip(),
+                            ("Hipodrom: " + str(h.get("bestCity") or h.get("best_city"))) if (h.get("bestCity") or h.get("best_city")) else "",
+                            ("Tarih: " + str(h.get("bestDate") or h.get("best_date"))) if (h.get("bestDate") or h.get("best_date")) else "",
+                            ("Mesafe: " + str(h.get("bestDistance") or h.get("best_distance"))) if (h.get("bestDistance") or h.get("best_distance")) else "",
+                        ] if x),
                         "Gny": h.get("odds") or "",
                         "AGF": h.get("agf") or "",
                         "_equipment": equipment,
@@ -632,7 +646,14 @@ elif st.session_state.page == "Yarış Programı":
                                 safe += f'<br><span class="rp-trainer">{trainer}</span>'
                         elif key == "Son 6 Y.":
                             safe = _html.escape(value.replace(" ", ""))
-                        cells.append(f"<td>{safe}</td>")
+                        if key == "EİD":
+                            eid_info = str(row.get("_eid_info", "") or "").strip()
+                            # Tooltip içeriği güvenli biçimde HTML attribute'a yazılır.
+                            tooltip = _html.escape(eid_info, quote=True)
+                            safe = f'<span class="rp-eid-value" title="{tooltip}">{safe}</span>'
+                            cells.append(f'<td class="rp-eid-cell">{safe}</td>')
+                        else:
+                            cells.append(f"<td>{safe}</td>")
                     html_rows.append("<tr>" + "".join(cells) + "</tr>")
 
                 table_html = (
