@@ -708,10 +708,13 @@ elif st.session_state.page == "Yarış Programı":
                     nonrunner = bool(horse.get("nonRunner") or horse.get("Koşmaz") or horse.get("koşmaz") or _re.search(r"\(\s*ko[sş]maz\s*\)", raw, flags=_re.I))
                     raw = _re.sub(r"\s*\(\s*ko[sş]maz\s*\)", "", raw, flags=_re.I)
                     raw = _re.sub(r"\s*Image.*$", "", raw, flags=_re.I)
-                    number = str(horse.get("no") or horse.get("numara") or "").strip()
-                    if not number:
-                        nm = _re.search(r"\((\d{1,2})\)", raw)
-                        number = nm.group(1) if nm else ""
+                    # TJK At İsmi hücresindeki parantezli numara gerçek at numarasıdır.
+                    # no/numara alanı bazı kaynaklarda yalnızca satır sırasını verir.
+                    nm = _re.search(r"\((\d{1,2})\)", raw)
+                    number = nm.group(1) if nm else str(
+                        horse.get("horseNumber") or horse.get("horse_no") or
+                        horse.get("programNo") or horse.get("numara") or horse.get("no") or ""
+                    ).strip()
                     equipment = str(horse.get("equipment") or horse.get("taki") or "").strip()
                     if not equipment:
                         tokens = _re.findall(r"(?i)\b(?:SKG|GKR|SGK|DB|KG|SK|K|G|D|B|H|TT|M)\b", raw)
