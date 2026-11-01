@@ -746,6 +746,7 @@ elif st.session_state.page == "Yarış Programı":
                         "_horse_form": str(h.get("form") or h.get("last6") or h.get("Son 6 Y.") or "").strip(),
                         "_nonrunner": nonrunner,
                         "_ekuri": bool(h.get("ekuri") or h.get("Eküri") or h.get("eküri")),
+                        "_ekuri_group": int(h.get("ekuriGroup") or h.get("Eküri Grup") or 0),
                         "Yaş": h.get("age") or h.get("yas") or "",
                         "Orijin (Baba-Anne)": h.get("origin") or h.get("orijin") or "",
                         "Kilo": _format_program_weight(h.get("weight") or h.get("siklet") or ""),
@@ -782,7 +783,14 @@ elif st.session_state.page == "Yarış Programı":
                             number = _html.escape(str(row.get("No", "")))
                             gear = _html.escape(str(row.get("_equipment", "")))
                             nonrunner_tag = ' <span style="color:#d40000!important;font-size:9px!important;font-weight:900!important">KOŞMAZ</span>' if row.get("_nonrunner") else ""
-                            ekuri_tag = ' <span title="Eküri" style="color:#d40000!important;font-size:11px!important;font-weight:900!important">♞</span>' if row.get("_ekuri") else ""
+                            ekuri_group = int(row.get("_ekuri_group") or 0)
+                            ekuri_color = "#e53935" if ekuri_group == 1 else ("#1565c0" if ekuri_group == 2 else "#e53935")
+                            ekuri_tag = (
+                                f' <span title="Eküri grubu {ekuri_group or 1}" '
+                                f'style="display:inline-block;color:{ekuri_color}!important;'
+                                f'font-size:19px!important;line-height:1!important;font-weight:900!important;'
+                                f'vertical-align:middle!important;text-shadow:0 0 1px #222">♞</span>'
+                            ) if row.get("_ekuri") else ""
                             safe = (
                                 f'<span class="rp-horse-name">{safe}</span> '
                                 f'<span class="rp-horse-no">({number})</span>'
