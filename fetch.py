@@ -177,7 +177,14 @@ def _tjk_parse_horse_tables(html):
         source_rows = table.find_all("tr")
         for row_index, row in enumerate(rows):
             def v(*keys):
-                return next((row[k] for k in keys if row.get(k)),"")
+                direct = next((row[k] for k in keys if row.get(k) not in (None, "")), "")
+                if direct not in (None, ""):
+                    return direct
+                # Başlık TJK'da "S20", "S.20", "Son 20" vb. biçimlerde gelebilir.
+                if any(k in {"s20", "s20y", "s20kosu", "s20kosular", "son20", "son20y", "son20yaris", "son20kosu", "son20kosular", "son20kosulari", "son20yarisi"} for k in keys):
+                    return next((value for key, value in row.items()
+                                 if ("s20" in key or "son20" in key) and value not in (None, "")), "")
+                return ""
             source_cells = source_rows[table_header_index + 1 + row_index].find_all(["td", "th"], recursive=False) if table_header_index + 1 + row_index < len(source_rows) else []
             at_id = ""
             for cell in source_cells:
@@ -216,7 +223,10 @@ def _tjk_parse_horse_tables(html):
                 "Yaş / Cins":v("yas","yascins","yascinsiyet"),"Orijin (Baba - Anne)":v("orijinbabaanne","orijinbabaannen","orijinbabaannesi","orijin"),
                 "Sıklet":v("siklet","kilo"),"Jokey":v("jokey"),"Sahip":v("sahip","atsahibi"),
                 "Antrenör":v("antrenor"),"St.":v("st","start"),"HP":v("hp"),"Son 6 Y.":v("son6y","son6yaris","form"),
-                "KGS":v("kgs"),"s20":v("s20","son20","son20y","son20yaris","son20kosu","son20kosular"),"EİD":v("eniyid","eniyiderece","eid"),"Sabit Oran":v("sabit oran","oran"),
+                "KGS":v("kgs"),
+                # TJK sayfa sürümlerinde S20 başlığı farklı yazımlarla gelebiliyor.
+                "s20":v("s20","s20y","s20kosu","s20kosular","son20","son20y","son20yaris","son20kosu","son20kosular","son20kosulari","son20yarisi"),
+                "EİD":v("eniyid","eniyiderece","eid"),"Sabit Oran":v("sabit oran","oran"),
                 "Muhtemel Ganyan":v("gny","ganyan")})
         race=meta[no]; race["runners"]=len(horses)
         result[no]={"race":race,"horses":horses,
@@ -387,13 +397,15 @@ def get_tjk_program(date_value, city):
             horses.append({
                 "no": h.get("Sıra") or "",
                 "name": h.get("At Adı") or "",
+                "nonRunner": bool(h.get("Koşmaz")),
+                "ekuri": bool(h.get("Eküri")),
                 "age": h.get("Yaş / Cins") or "",
                 "origin": h.get("Orijin (Baba - Anne)") or "",
                 "weight": h.get("Sıklet") or "",
                 "jockey": h.get("Jokey") or "", "owner": h.get("Sahip") or "",
                 "trainer": h.get("Antrenör") or "", "st": h.get("St.") or "",
                 "hp": h.get("HP") or "", "last6": h.get("Son 6 Y.") or "",
-                "kgs": h.get("KGS") or "", "s20": h.get("s20") or h.get("Son 20") or "", "bestTime": h.get("EİD") or "",
+                "kgs": h.get("KGS") or "", "s20": h.get("s20") or h.get("S20") or h.get("Son 20") or "", "bestTime": h.get("EİD") or "",
                 "bestInfo": h.get("EİD Bilgi") or "",
                 "odds": h.get("Muhtemel Ganyan") or h.get("Sabit Oran") or "", "agf": "",
                 "atId": h.get("_at_id") or "",
