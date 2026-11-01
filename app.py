@@ -683,14 +683,14 @@ elif st.session_state.page == "Yarış Programı":
                             if dam:
                                 safe += f'<br><span class="rp-origin-dam">{dam}</span>'
                         elif key == "Kilo":
-                            km = _re.match(r"^(\d+(?:[.,]\d+)?)\s*KG(?:\s*([+]\s*\d+(?:[.,]\d+)?))?$", value, flags=_re.I)
+                            km = _re.search(r"(\d+(?:[.,]\d+)?)\s*KG\s*([+]\s*\d+(?:[.,]\d+)?)?", value, flags=_re.I)
                             if km:
                                 base = _html.escape(km.group(1) + "KG")
                                 extra_value = _re.sub(r"\s+", "", km.group(2) or "")
                                 extra = f' <span style="color:#d40000!important;font-size:9px!important;font-weight:900!important;white-space:nowrap">{_html.escape(extra_value)}</span>' if extra_value else ""
                                 safe = base + extra
                         elif key == "St":
-                            sm = _re.match(r"^(\d+)\s+(DS|TS)$", value, flags=_re.I)
+                            sm = _re.search(r"(\d+)\s*(DS|TS)\b", value, flags=_re.I)
                             if sm:
                                 safe = f'{_html.escape(sm.group(1))} <span style="color:#d40000!important;font-size:9px!important;font-weight:900!important">{_html.escape(sm.group(2).upper())}</span>'
                         elif key == "Jokey":
