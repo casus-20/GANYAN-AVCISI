@@ -708,10 +708,13 @@ elif st.session_state.page == "Yarış Programı":
                     nonrunner = bool(horse.get("nonRunner") or horse.get("Koşmaz") or horse.get("koşmaz") or _re.search(r"\(\s*ko[sş]maz\s*\)", raw, flags=_re.I))
                     raw = _re.sub(r"\s*\(\s*ko[sş]maz\s*\)", "", raw, flags=_re.I)
                     raw = _re.sub(r"\s*Image.*$", "", raw, flags=_re.I)
-                    number = str(horse.get("no") or horse.get("numara") or "").strip()
-                    if not number:
-                        nm = _re.search(r"\((\d{1,2})\)", raw)
-                        number = nm.group(1) if nm else ""
+                    # TJK At İsmi hücresindeki parantezli numara gerçek at numarasıdır.
+                    # no/numara alanı bazı kaynaklarda yalnızca satır sırasını verir.
+                    nm = _re.search(r"\((\d{1,2})\)", raw)
+                    number = nm.group(1) if nm else str(
+                        horse.get("horseNumber") or horse.get("horse_no") or
+                        horse.get("programNo") or horse.get("numara") or horse.get("no") or ""
+                    ).strip()
                     equipment = str(horse.get("equipment") or horse.get("taki") or "").strip()
                     if not equipment:
                         tokens = _re.findall(r"(?i)\b(?:SKG|GKR|SGK|DB|KG|SK|K|G|D|B|H|TT|M)\b", raw)
@@ -740,6 +743,7 @@ elif st.session_state.page == "Yarış Programı":
                     display_rows.append({
                         "No": horse_no or str(h.get("no") or i),
                         "At İsmi": horse_name,
+                        "_horse_form": str(h.get("form") or h.get("last6") or h.get("Son 6 Y.") or "").strip(),
                         "_nonrunner": nonrunner,
                         "_ekuri": bool(h.get("ekuri") or h.get("Eküri") or h.get("eküri")),
                         "Yaş": h.get("age") or h.get("yas") or "",
@@ -779,10 +783,16 @@ elif st.session_state.page == "Yarış Programı":
                             gear = _html.escape(str(row.get("_equipment", "")))
                             nonrunner_tag = ' <span style="color:#d40000!important;font-size:9px!important;font-weight:900!important">KOŞMAZ</span>' if row.get("_nonrunner") else ""
                             ekuri_tag = ' <span title="Eküri" style="color:#d40000!important;font-size:11px!important;font-weight:900!important">♞</span>' if row.get("_ekuri") else ""
+                            form_value = _html.escape(str(row.get("_horse_form", "") or "").strip())
+                            form_tag = (
+                                f' <span style="color:#075b32!important;font-size:10px!important;font-weight:900!important">'
+                                f'<span style="color:#1683d8!important"> (</span>{form_value}'
+                                f'<span style="color:#1683d8!important">)</span></span>'
+                            ) if form_value else ""
                             safe = (
                                 f'<span class="rp-horse-name">{safe}</span> '
                                 f'<span class="rp-horse-no">({number})</span>'
-                                f'{ekuri_tag}{nonrunner_tag} '
+                                f'{form_tag}{ekuri_tag}{nonrunner_tag} '
                                 f'<span class="rp-equipment">{gear}</span>'
                             )
                         elif key == "Orijin (Baba-Anne)":
