@@ -527,24 +527,46 @@ elif st.session_state.page == "Yarış Programı":
         race_name = race.get("name") or race.get("condition") or meta.get("raceName") or f"{selected}. KOŞU"
 
         with st.container(border=True):
+            import html as _race_html
+            race_class_text = str(race.get("class", meta.get("class", "")) or "")
+            race_details = str(race.get("details") or "").strip()
+            # Koşu türüne göre bilgi bandı rengi; veri metni TJK yanıtından gelir.
+            class_key = race_class_text.casefold()
+            if "maiden" in class_key:
+                race_color = "#7c3aed"
+            elif "handikap" in class_key:
+                race_color = "#16834a"
+            elif "kv" in class_key or "grup" in class_key:
+                race_color = "#b7791f"
+            elif "satış" in class_key or "satis" in class_key:
+                race_color = "#c05621"
+            else:
+                race_color = "#1769aa"
             p1, p2, p3, p4 = st.columns([.55, 1, 1.7, 1.6])
             with p1:
                 st.markdown(
-                    f'<div style="background:#005BB3;border-radius:10px;text-align:center;padding:12px 4px;font-weight:800">{selected}. Koşu</div>',
+                    f'<div style="background:{race_color};border-radius:10px;text-align:center;padding:12px 4px;font-weight:800">{selected}. Koşu</div>',
                     unsafe_allow_html=True
                 )
             with p2:
-                st.markdown(f'<b>{track}</b><br><span class="small-muted">Hipodromu</span>', unsafe_allow_html=True)
+                st.markdown(f'<b>{_race_html.escape(str(track))}</b><br><span class="small-muted">Hipodromu</span>', unsafe_allow_html=True)
             with p3:
                 st.markdown(
-                    f'<b>{race_name}</b><br><span class="small-muted">{race.get("class", meta.get("class", ""))} / '
-                    f'{race.get("age", meta.get("age", ""))} / {distance} ({surface})</span>',
+                    f'<b>{_race_html.escape(str(race_name))}</b><br><span class="small-muted">{_race_html.escape(race_class_text)} / '
+                    f'{_race_html.escape(str(race.get("age", meta.get("age", "")) or ""))} / {_race_html.escape(str(distance))} ({_race_html.escape(str(surface))})</span>',
                     unsafe_allow_html=True
                 )
             with p4:
                 st.markdown(
-                    f'<div style="font-size:12px;text-align:right">◷ {race.get("time") or "—"}<br>'
-                    f'Koşan At: {len(horses)}<br>Ödül: {race.get("prize") or "—"}</div>',
+                    f'<div style="font-size:12px;text-align:right">◷ {_race_html.escape(str(race.get("time") or "—"))}<br>'
+                    f'Koşan At: {len(horses)}<br>Ödül: {_race_html.escape(str(race.get("prize") or "—"))}</div>',
+                    unsafe_allow_html=True
+                )
+            if race_details:
+                st.markdown(
+                    f'<div style="margin-top:8px;padding:9px 12px;border-left:4px solid {race_color};'
+                    f'background:rgba(120,140,170,.10);border-radius:5px;font-size:11px;line-height:1.55;'
+                    f'color:#e8edf7;white-space:normal">{_race_html.escape(race_details)}</div>',
                     unsafe_allow_html=True
                 )
 
