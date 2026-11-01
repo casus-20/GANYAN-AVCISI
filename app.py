@@ -784,21 +784,24 @@ elif st.session_state.page == "Yarış Programı":
                             gear = _html.escape(str(row.get("_equipment", "")))
                             nonrunner_tag = ' <span style="color:#d40000!important;font-size:9px!important;font-weight:900!important">KOŞMAZ</span>' if row.get("_nonrunner") else ""
                             ekuri_group = int(row.get("_ekuri_group") or 0)
-                            # İki eküri grubunu glyph renginden bağımsız,
-                            # dolu rozet zeminiyle görsel olarak ayır.
-                            ekuri_bg = "#d71920" if ekuri_group == 1 else ("#1266cc" if ekuri_group == 2 else "#555555")
+                            # TJK programındaki gerçek ikon renkleri:
+                            # 1. eküri siyah, 2. eküri kırmızı. Renkli emoji
+                            # fontlarının CSS color değerini yok saymasına karşı
+                            # ikinci grubun glifine CSS filter uygulanır.
+                            ekuri_style = (
+                                "color:#111111!important;-webkit-text-fill-color:#111111!important;"
+                                if ekuri_group == 1 else
+                                "color:#d71920!important;-webkit-text-fill-color:#d71920!important;"
+                                "filter:brightness(0) saturate(100%) invert(13%) sepia(97%) "
+                                "saturate(6240%) hue-rotate(353deg) brightness(91%) contrast(112%)!important;"
+                            )
                             ekuri_tag = (
-                                f' <span title="Eküri grubu {ekuri_group or 1}" '
-                                f'style="display:inline-flex!important;align-items:center!important;'
-                                f'justify-content:center!important;width:23px!important;height:23px!important;'
-                                f'margin-left:3px!important;border-radius:50%!important;'
-                                f'background:{ekuri_bg}!important;background-color:{ekuri_bg}!important;'
-                                f'border:1px solid #ffffff!important;'
-                                f'color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;'
+                                f' <span title="TJK eküri grubu {ekuri_group}" '
+                                f'style="display:inline-block!important;{ekuri_style}'
                                 f'font-family:Arial,\'Segoe UI Symbol\',serif!important;'
-                                f'font-size:17px!important;line-height:1!important;font-weight:900!important;'
-                                f'vertical-align:middle!important;box-shadow:0 0 0 1px {ekuri_bg}!important">'
-                                f'&#x265E;&#xFE0E;</span>'
+                                f'font-size:22px!important;line-height:1!important;font-weight:900!important;'
+                                f'vertical-align:middle!important;text-shadow:0 0 1px #ffffff">'
+                                f'♞</span>'
                             ) if row.get("_ekuri") else ""
                             safe = (
                                 f'<span class="rp-horse-name">{safe}</span> '
