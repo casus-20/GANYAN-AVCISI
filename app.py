@@ -500,11 +500,26 @@ elif st.session_state.page == "Yarış Programı":
                 race_item = races[idx]
                 race_no = int(race_item.get("no") or race_item.get("race_number") or idx + 1)
                 with col:
+                    race_surface = str(race_item.get("surface") or "").casefold()
+                    if "kum" in race_surface:
+                        button_color, button_text = "#b58a16", "#17130a"
+                    elif "çim" in race_surface or "cim" in race_surface:
+                        button_color, button_text = "#16834a", "#ffffff"
+                    elif "sentetik" in race_surface:
+                        button_color, button_text = "#7136b8", "#ffffff"
+                    else:
+                        button_color, button_text = "#35415e", "#ffffff"
+                    race_button_key = f"tjk_race_{selected_date:%Y%m%d}_{track}_{race_no}"
+                    st.markdown(
+                        f'<style>div.st-key-{race_button_key} button{{background:{button_color}!important;'
+                        f'color:{button_text}!important;border:1px solid {button_color}!important;'
+                        f'font-weight:800!important}}</style>', unsafe_allow_html=True
+                    )
                     if st.button(
                         f'{race_no}. Koşu\n{race_item.get("time", "")}',
-                        key=f"tjk_race_{selected_date:%Y%m%d}_{track}_{race_no}",
+                        key=race_button_key,
                         use_container_width=True,
-                        type="primary" if selected == race_no else "secondary"
+                        type="secondary"
                     ):
                         st.session_state.race_no = race_no
                         st.rerun()
@@ -530,43 +545,48 @@ elif st.session_state.page == "Yarış Programı":
             import html as _race_html
             race_class_text = str(race.get("class", meta.get("class", "")) or "")
             race_details = str(race.get("details") or "").strip()
-            # Koşu türüne göre bilgi bandı rengi; veri metni TJK yanıtından gelir.
-            class_key = race_class_text.casefold()
-            if "maiden" in class_key:
-                race_color = "#7c3aed"
-            elif "handikap" in class_key:
+            surface_key = str(surface or "").casefold()
+            # Pist rengi koşu türünden bağımsızdır: Kum=sarı, Çim=yeşil, Sentetik=mor.
+            if "kum" in surface_key:
+                race_color = "#b58a16"
+                race_text_color = "#17130a"
+            elif "çim" in surface_key or "cim" in surface_key:
                 race_color = "#16834a"
-            elif "kv" in class_key or "grup" in class_key:
-                race_color = "#b7791f"
-            elif "satış" in class_key or "satis" in class_key:
-                race_color = "#c05621"
+                race_text_color = "#ffffff"
+            elif "sentetik" in surface_key:
+                race_color = "#7136b8"
+                race_text_color = "#ffffff"
             else:
                 race_color = "#1769aa"
-            p1, p2, p3, p4 = st.columns([.55, 1, 1.7, 1.6])
-            with p1:
+                race_text_color = "#ffffff"
+
+            # Tek ve dolu bir başlık bandı: boş kolonlar kaldırıldı.
+            age_text = str(race.get("age", meta.get("age", "")) or "").strip()
+            distance_text = str(distance or "").strip()
+            race_name_text = str(race_name or "").strip()
+            title_parts = [x for x in [race_name_text, race_class_text, age_text,
+                                       str(race.get("weight") or "").strip(),
+                                       distance_text, str(surface or "").strip()] if x and x != "—"]
+            header_text = " · ".join(title_parts)
+            prize_text = str(race.get("prize") or "").strip()
+            st.markdown(
+                f'<div style="background:{race_color};color:{race_text_color};'
+                f'border-radius:8px;padding:12px 16px;font-weight:800;'
+                f'display:flex;justify-content:space-between;align-items:center;gap:16px">'
+                f'<span style="flex:1">{_race_html.escape(header_text)}</span>'
+                f'<span style="white-space:nowrap;font-size:12px"> {selected}. KOŞU · '
+                f'{_race_html.escape(str(race.get("time") or "—"))} · '
+                f'{len(horses)} AT</span></div>',
+                unsafe_allow_html=True
+            )
+            if race_details or prize_text:
+                details_text = race_details or f"İkramiye: {prize_text}"
                 st.markdown(
-                    f'<div style="background:{race_color};border-radius:10px;text-align:center;padding:12px 4px;font-weight:800">{selected}. Koşu</div>',
-                    unsafe_allow_html=True
-                )
-            with p2:
-                st.markdown(f'<b>{_race_html.escape(str(track))}</b><br><span class="small-muted">Hipodromu</span>', unsafe_allow_html=True)
-            with p3:
-                st.markdown(
-                    f'<b>{_race_html.escape(str(race_name))}</b><br><span class="small-muted">{_race_html.escape(race_class_text)} / '
-                    f'{_race_html.escape(str(race.get("age", meta.get("age", "")) or ""))} / {_race_html.escape(str(distance))} ({_race_html.escape(str(surface))})</span>',
-                    unsafe_allow_html=True
-                )
-            with p4:
-                st.markdown(
-                    f'<div style="font-size:12px;text-align:right">◷ {_race_html.escape(str(race.get("time") or "—"))}<br>'
-                    f'Koşan At: {len(horses)}<br>Ödül: {_race_html.escape(str(race.get("prize") or "—"))}</div>',
-                    unsafe_allow_html=True
-                )
-            if race_details:
-                st.markdown(
-                    f'<div style="margin-top:8px;padding:9px 12px;border-left:4px solid {race_color};'
-                    f'background:rgba(120,140,170,.10);border-radius:5px;font-size:11px;line-height:1.55;'
-                    f'color:#e8edf7;white-space:normal">{_race_html.escape(race_details)}</div>',
+                    f'<div style="margin-top:6px;padding:9px 12px;'
+                    f'border-left:4px solid {race_color};background:rgba(245,238,215,.98);'
+                    f'color:#243126;border-radius:5px;font-size:11px;line-height:1.55;'
+                    f'font-weight:700;white-space:normal">'
+                    f'{_race_html.escape(details_text)}</div>',
                     unsafe_allow_html=True
                 )
 
