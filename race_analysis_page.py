@@ -531,7 +531,7 @@ def render():
         """
         <div class="hero">
             <h1><span class="accent">GANYAN</span> AVCISI</h1>
-            <p>YARIŞ ANALİZİ</p>
+            <p>At yarışı analiz ve istatistik platformu</p>
         </div>
         """,
         unsafe_allow_html=True,
