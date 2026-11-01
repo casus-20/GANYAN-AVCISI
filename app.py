@@ -517,8 +517,8 @@ elif st.session_state.page == "Yarış Programı":
             return "#F2D34F", "#241D08"  # parlak sarı, koyu yazı
         if "kum" in key:
             return "#E87516", "#FFFFFF"  # turuncu, beyaz yazı
-        if "çim" in key or "cim" in key:
-            return "#238B45", "#FFFFFF"  # yeşil, beyaz yazı
+        if "çim" in key or "cim" in key or "turf" in key:
+            return "#238B45", "#FFFFFF"  # çim/turf: yeşil, beyaz yazı
         return "#35415e", "#ffffff"
 
     with st.container(border=True):
@@ -600,19 +600,25 @@ elif st.session_state.page == "Yarış Programı":
             age_text = str(race.get("age", meta.get("age", "")) or "").strip()
             distance_text = str(distance or "").strip()
             race_name_text = str(race_name or "").strip()
-            title_parts = [x for x in [race_name_text, race_class_text, age_text,
-                                       str(race.get("weight") or "").strip(),
-                                       distance_text, str(surface or "").strip()] if x and x != "—"]
-            header_text = " · ".join(title_parts)
+            race_time_text = str(race.get("time") or race.get("start_time") or meta.get("time") or meta.get("startTime") or race.get("startTime") or "").strip()
+            # Başlık sırası: koşu numarası + saat + koşu şartı; ardından ad ve pist detayları.
+            # Saat, TJK verisindeki farklı olası alan adlarından alınır.
+            race_time_text = str(
+                race.get("time") or race.get("start_time") or race.get("startTime") or
+                meta.get("time") or meta.get("start_time") or meta.get("startTime") or ""
+            ).strip()
+            race_no_text = f"{selected}. KOŞU"
+            title_parts = [race_no_text, race_time_text, race_class_text, race_name_text,
+                           age_text, str(race.get("weight") or "").strip(),
+                           distance_text, str(surface or "").strip()]
+            header_text = " · ".join(x for x in title_parts if x and x != "—")
             prize_text = str(race.get("prize") or "").strip()
             st.markdown(
                 f'<div style="background:{race_color};color:{race_text_color};'
                 f'border-radius:8px;padding:12px 16px;font-weight:800;'
                 f'display:flex;justify-content:space-between;align-items:center;gap:16px">'
                 f'<span style="flex:1">{_race_html.escape(header_text)}</span>'
-                f'<span style="white-space:nowrap;font-size:12px"> {selected}. KOŞU · '
-                f'{_race_html.escape(str(race.get("time") or "—"))} · '
-                f'{len(horses)} AT</span></div>',
+                f'<span style="white-space:nowrap;font-size:12px">{len(horses)} AT</span></div>',
                 unsafe_allow_html=True
             )
             if race_details or prize_text:
