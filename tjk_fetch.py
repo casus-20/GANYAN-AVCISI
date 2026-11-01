@@ -62,6 +62,13 @@ def normalize_text(value: Any) -> str:
     return " ".join(str(value).replace("\xa0", " ").split()).strip()
 
 
+def _fold_tr(value: Any) -> str:
+    """Türkçe karakter ve birleşik Unicode farklarını kaldırarak karşılaştırma yapar."""
+    import unicodedata
+    text = normalize_text(value).replace("İ", "i").replace("ı", "i")
+    return "".join(ch for ch in unicodedata.normalize("NFKD", text.lower()) if not unicodedata.combining(ch))
+
+
 def normalize_date(value: Any) -> str:
     """
     Streamlit date_input:
@@ -121,6 +128,7 @@ def format_date_tr(value: Any) -> str:
 
 TJK_BASE = "https://www.tjk.org"
 DYNAMIC_CITY_IDS = {}
+DYNAMIC_VENUE_URLS = {}
 
 def _tjk_headers():
     return {"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/128 Safari/537.36",
@@ -167,31 +175,33 @@ def _parse_tjk_daily(html):
         header_index = -1
         for row_index, row in enumerate(rows):
             cells = _html_cells(row)
-            normalized = [normalize_text(x).lower() for x in cells]
+            normalized = [_fold_tr(x) for x in cells]
             has_name = any(("at ismi" in x) or ("at adi" in x) or ("horse name" in x) for x in normalized)
-            has_hp = any(x == "hp" for x in normalized)
-            has_last6 = any("son 6" in x or "last 6" in x for x in normalized)
-            if has_name and has_hp and has_last6:
+            has_no = any(x in ("n", "no", "s", "numara") for x in normalized)
+            # TJK sayfa sürümlerinde HP/Son 6 sütunları gizlenebiliyor;
+            # at adı + numara başlığı program tablosunu tanımak için yeterlidir.
+            if has_name and has_no:
                 header = cells
                 header_index = row_index
                 break
         if not header:
             continue
 
+        folded_header = [_fold_tr(x) for x in header]
         def ix(pattern):
-            return next((i for i, value in enumerate(header) if re.search(pattern, value, re.I)), -1)
+            return next((i for i, value in enumerate(folded_header) if re.search(pattern, value, re.I)), -1)
 
         idx = {
-            "no": ix(r"^N$|^No$|^S$"), "name": ix(r"At İsmi|At Adı|Horse Name"),
-            "age": ix(r"^Yaş$|^Age$"), "origin": ix(r"Orijin|Origin"),
-            "weight": ix(r"Sıklet|Weight"), "jockey": ix(r"^Jokey$|^Jockey$"),
-            "owner": ix(r"^Sahip$|^Owner$"), "trainer": ix(r"Antrenör|Trainer"),
-            "st": ix(r"^St$|^Start$"), "hp": ix(r"^HP$|^RT$"),
-            "last6": ix(r"Son 6|Last 6"), "kgs": ix(r"^KGS$"),
-            "s20": ix(r"^s20$"), "best": ix(r"En İyi D\\.|Best Time"),
-            "odds": ix(r"^Gny$|Odds"), "agf": ix(r"^AGF$|Favorite"),
-            "workout": ix(r"^İdm$|^Idm$|Workout"),
-            "lastDate": ix(r"Son Koşu Tarihi|Last Race Date"),
+            "no": ix(r"^(n|no|s|numara)$"), "name": ix(r"at ismi|at adi|horse name"),
+            "age": ix(r"^(yas|age)$"), "origin": ix(r"orijin|origin"),
+            "weight": ix(r"siklet|weight"), "jockey": ix(r"^(jokey|jockey)$"),
+            "owner": ix(r"^(sahip|owner)$"), "trainer": ix(r"antrenor|trainer"),
+            "st": ix(r"^(st|start)$"), "hp": ix(r"^(hp|rt)$"),
+            "last6": ix(r"son 6|last 6"), "kgs": ix(r"^kgs$"),
+            "s20": ix(r"^s20$"), "best": ix(r"en iyi d\.|best time"),
+            "odds": ix(r"^gny$|odds"), "agf": ix(r"^agf$|favorite"),
+            "workout": ix(r"^(idm|workout)$"),
+            "lastDate": ix(r"son kosu tarihi|last race date"),
         }
         horses = []
         for row in rows[header_index + 1:]:
@@ -223,7 +233,7 @@ def _parse_tjk_daily(html):
 
         table_pos = source.find(table)
         before = _html_text(source[max(0, table_pos - 35000):table_pos])
-        markers = list(re.finditer(r"(\d{1,2}\\.\s*Koşu)\s+([0-2]?\d[:.][0-5]\d)", before, re.I))
+        markers = list(re.finditer(r"(\d{1,2}\.\s*Koşu)\s+([0-2]?\d[:.][0-5]\d)", before, re.I))
         race_time = markers[-1].group(2).replace(".", ":") if markers else ""
         detail = ""
         if markers:
@@ -298,59 +308,93 @@ def _parse_tjk_workouts(html):
 
 
 def _discover_tjk_venues(date_value, timeout=25):
-    """TJK günlük programından seçilen tarihteki yerli ve yabancı hipodromları keşfeder."""
-    from urllib.parse import urljoin, urlparse, parse_qs
+    """Verilen TJK günlük program ana sayfasından o tarihin tüm yerli/yabancı hipodrom linklerini çıkarır."""
+    from urllib.parse import urljoin, urlparse, parse_qs, quote
     from bs4 import BeautifulSoup
+
     iso = normalize_date(date_value)
     dmy = datetime.strptime(iso, "%Y-%m-%d").strftime("%d/%m/%Y")
-    urls = [
-        f"{TJK_BASE}/TR/YarisSever/Info/Page/GunlukYarisProgrami?QueryParameter_Tarih={quote(dmy)}",
-        f"{TJK_BASE}/TR/YarisSever/Info/Page/GunlukYarisProgrami?1=1&QueryParameter_Tarih={quote(dmy)}",
-        f"{TJK_BASE}/TR/map/Info/Page/GunlukYarisProgrami?QueryParameter_Tarih={quote(dmy)}",
-    ]
+    main_url = f"{TJK_BASE}/TR/YarisSever/Info/Page/GunlukYarisProgrami"
+    urls = [main_url + "?QueryParameter_Tarih=" + quote(dmy)]
     found = {}
-    for url in urls:
+    errors = []
+
+    for page_url in urls:
         try:
-            response = _get_http_session().get(url, timeout=timeout, headers=_tjk_headers())
+            response = _get_http_session().get(page_url, timeout=timeout, headers=_tjk_headers())
             if response.status_code >= 400:
+                errors.append(f"HTTP {response.status_code}: {page_url}")
                 continue
-            soup = BeautifulSoup(response.text or "", "html.parser")
+            html = response.text or ""
+            soup = BeautifulSoup(html, "html.parser")
+
+            # Önce gerçek anchor bağlantılarını oku.
+            candidates = []
             for a in soup.find_all("a", href=True):
                 href = a.get("href", "").replace("&amp;", "&")
-                if not re.search(r"GunlukYarisProgrami|Kayitlar", href, re.I):
-                    continue
-                parsed = urlparse(urljoin(TJK_BASE, href))
+                if re.search(r"GunlukYarisProgrami|Kayitlar", href, re.I):
+                    candidates.append((href, a.get_text(" ", strip=True)))
+
+            # Bazı TJK sürümlerinde şehir linkleri script/JSON içine gömülüyor.
+            # Bu nedenle sayfa kaynağındaki URL benzeri parçaları da tara.
+            for match in re.finditer(r"(?:href\s*=\s*['\"]|(?:\\/)?TR\\/)[^'\"]{0,1200}(?:GunlukYarisProgrami|Kayitlar)[^'\"]{0,1200}", html, re.I):
+                raw = match.group(0).strip().strip("'\"")
+                raw = raw.replace("\\/", "/").replace("&amp;", "&").replace("\u0026", "&")
+                candidates.append((raw, ""))
+
+            for href, link_text in candidates:
+                absolute = urljoin(TJK_BASE, href)
+                parsed = urlparse(absolute)
                 params = parse_qs(parsed.query)
-                ids = params.get("SehirId") or params.get("sehirId") or []
-                names = params.get("SehirAdi") or params.get("sehirAdi") or []
-                name = normalize_text(names[0] if names else a.get_text(" ", strip=True))
+                ids = params.get("SehirId") or params.get("sehirId") or params.get("sehirID") or []
+                names = params.get("SehirAdi") or params.get("sehirAdi") or params.get("Sehir") or []
+                name = normalize_text(names[0] if names else link_text)
                 name = re.sub(r"\s*\([^)]*\)\s*$", "", name).strip()
-                if name and ids and str(ids[0]).isdigit():
-                    found[name] = int(ids[0])
+                if not name or not ids or not str(ids[0]).isdigit():
+                    continue
+                cid = int(ids[0])
+                # Aynı şehrin tekrar eden linkleri içinden tam program sayfasını sakla.
+                key = _canonical_city_name(name)
+                found[key] = {"id": cid, "url": absolute}
+
             if found:
                 break
-        except Exception:
-            continue
+        except Exception as exc:
+            errors.append(str(exc))
+
     DYNAMIC_CITY_IDS.clear()
-    DYNAMIC_CITY_IDS.update(found)
+    DYNAMIC_CITY_IDS.update({name: item["id"] for name, item in found.items()})
+    DYNAMIC_VENUE_URLS.clear()
+    DYNAMIC_VENUE_URLS.update({name: item["url"] for name, item in found.items()})
     return list(found)
 
 
 def _fetch_tjk_daily(date_value,city,timeout=45):
     from urllib.parse import quote
     iso=normalize_date(date_value); city=normalize_text(city)
-    cid = CITY_IDS.get(city) or DYNAMIC_CITY_IDS.get(city)
+    cid = DYNAMIC_CITY_IDS.get(city) or CITY_IDS.get(city)
     if not cid:
         _discover_tjk_venues(date_value, timeout=min(timeout, 25))
-        cid = CITY_IDS.get(city) or DYNAMIC_CITY_IDS.get(city)
+        cid = DYNAMIC_CITY_IDS.get(city) or CITY_IDS.get(city)
     if not cid:
         raise ValueError(f"Bu tarihte TJK programında hipodrom bulunamadı: {city}")
     dmy=datetime.strptime(iso,"%Y-%m-%d").strftime("%d/%m/%Y")
-    urls=[
-      f"{TJK_BASE}/TR/YarisSever/Info/Page/GunlukYarisProgrami?QueryParameter_Tarih={quote(dmy)}&SehirAdi={quote(city)}&SehirId={cid}",
+    discovered_url = DYNAMIC_VENUE_URLS.get(city) or DYNAMIC_VENUE_URLS.get(_canonical_city_name(city))
+    urls = []
+    if discovered_url:
+        # Ana günlük program sayfasının verdiği hipodrom bağlantısını aynen kullan.
+        from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
+        parsed = urlparse(discovered_url)
+        query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+        query["QueryParameter_Tarih"] = dmy
+        query.setdefault("SehirAdi", city)
+        query.setdefault("SehirId", str(cid))
+        urls.append(urlunparse(parsed._replace(query=urlencode(query))))
+    urls.extend([
       f"{TJK_BASE}/TR/YarisSever/Info/Sehir/GunlukYarisProgrami?QueryParameter_Tarih={quote(dmy)}&SehirAdi={quote(city)}&SehirId={cid}",
-      f"{TJK_BASE}/TR/YarisSever/Info/Page/GunlukYarisProgrami?1=1&Era=today&QueryParameter_Tarih={quote(dmy)}&SehirAdi={quote(city)}",
-      f"{TJK_BASE}/TR/YarisSever/Info/Sehir/Kayitlar?Era=today&QueryParameter_Tarih={quote(dmy)}&SehirAdi={quote(city)}&SehirId={cid}"]
+      f"{TJK_BASE}/TR/YarisSever/Info/Page/GunlukYarisProgrami?QueryParameter_Tarih={quote(dmy)}&SehirAdi={quote(city)}&SehirId={cid}",
+      f"{TJK_BASE}/TR/YarisSever/Info/Sehir/Kayitlar?Era=today&QueryParameter_Tarih={quote(dmy)}&SehirAdi={quote(city)}&SehirId={cid}",
+    ])
     errors=[]
     for url in urls:
         try:
@@ -774,18 +818,17 @@ def normalize_program(program: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def get_supported_cities() -> List[str]:
-    return list(dict.fromkeys(list(CITY_IDS.keys()) + list(DYNAMIC_CITY_IDS.keys())))
+    return list(dict.fromkeys(list(DYNAMIC_CITY_IDS.keys())))
 
 
 def get_city_id(city: str) -> int:
     city = normalize_text(city)
 
-    if city not in CITY_IDS:
-        raise ValueError(
-            f"Bilinmeyen hipodrom: {city}"
-        )
-
-    return CITY_IDS[city]
+    if city in DYNAMIC_CITY_IDS:
+        return DYNAMIC_CITY_IDS[city]
+    if city in CITY_IDS:
+        return CITY_IDS[city]
+    raise ValueError(f"Bilinmeyen hipodrom: {city}")
 
 
 
@@ -834,8 +877,12 @@ def _TJK_result_matches_target(data: Dict[str, Any], target_date: str, requested
 
 def get_active_cities(date_value: Any) -> List[str]:
     target = normalize_date(date_value)
-    _discover_tjk_venues(target, timeout=25)
-    candidates = list(dict.fromkeys(list(CITY_IDS.keys()) + list(DYNAMIC_CITY_IDS.keys())))
+    # Kaynak yalnızca kullanıcının belirttiği TJK günlük program ana sayfasıdır.
+    # Sabit yerli hipodrom listesi eklenmez; sayfanın verdiği tüm yerli/yabancı
+    # hipodrom bağlantıları tek tek doğrulanır.
+    candidates = _discover_tjk_venues(target, timeout=25)
+    if not candidates:
+        return []
     def check(city):
         try:
             data = _fetch_tjk_daily(target, city, timeout=25)
