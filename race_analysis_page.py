@@ -711,14 +711,6 @@ def render():
             raw,
         ).strip()
 
-        # Takı kodlarını isimden ayır; renderer bunları ayrı ve küçük kırmızı gösterir.
-        raw = re.sub(
-            r"\s+(?:(?:DB|KG|K|SKG|SK|GKR|G|D|B|H|TT|M|SGK)(?:\s+|$)){1,6}$",
-            "",
-            raw,
-            flags=re.I,
-        ).strip()
-
         return raw
 
 
@@ -795,6 +787,24 @@ def render():
         return _extract_equipment_from_text(
             horse.get("name") or horse.get("at_ismi") or horse.get("At İsmi")
         )
+
+
+    def _main_table_horse_name(horse: Dict[str, Any]) -> str:
+        """Ana tabloda at adından TJK'nın uzun takı/açıklama metnini ayırır.
+
+        Sadece görüntüleme içindir; kaynak horse nesnesi ve analiz verisi değişmez.
+        """
+        name = get_horse_name(horse)
+        # Bazı günlük bültenlerde ekipman açıklaması at adına eklenmiş geliyor.
+        # Örn: WOLF WOMEN SKG Ring mahalinden ... -> WOLF WOMEN SKG
+        name = re.sub(
+            r"\s+(?:Ring|Kulaklık|Kulaklik|Kapalı\s+gözlük|Kapali\s+gozluk|"
+            r"Dilbağı|Dil bagi|Gözlük|Gozluk|Takı|Taki)\b.*$",
+            "",
+            str(name or ""),
+            flags=re.I,
+        ).strip()
+        return name
 
 
     def get_horse_number(
@@ -4341,12 +4351,9 @@ def render():
                 # No = TJK'nın gerçek programdaki AT NUMARASI.
                 # Analiz sırası ile at numarasını birbirine karıştırma.
                 "No": int(get_horse_number(horse, horse_index + 1)),
-                "At İsmi": "\n".join(
-                    [x for x in (
-                        get_horse_name(horse),
-                        get_horse_equipment(horse),
-                    ) if x]
-                ),
+                # Ana tabloda at adı, program numarası ve takı ayrı span olarak çizilir.
+                # Görüntü düzeni dışında yarış verisi/hesaplama alanları değiştirilmez.
+                "At İsmi": _main_table_horse_name(horse),
                 "_race_finish": _race_finish_label(horse, selected_race, horse_index, target_date=selected_date, target_city_name=selected_city),
                 "Yaş": get_horse_age(horse),
                 "Orijin (Baba-Anne)": "\n".join([x for x in _split_origin(get_horse_origin(horse)) if x]),
@@ -4405,6 +4412,14 @@ def render():
         df_grid = df_display.copy()
         df_grid["_race_finish"] = df["_race_finish"].values
         df_grid["_horse_index"] = df["_horse_index"].values
+        # At isminin yanındaki yeşil parantez TJK programındaki at numarasıdır;
+        # bitiriş sırası değildir. _race_finish alanı başka yerlerde korunur.
+        df_grid["_horse_no"] = df["No"].values
+        df_grid["_horse_equipment"] = [
+            get_horse_equipment(horses[int(hidx)])
+            if str(hidx).strip().lstrip("-").isdigit() and 0 <= int(hidx) < len(horses) and isinstance(horses[int(hidx)], dict) else ""
+            for hidx in df["_horse_index"].tolist()
+        ]
         df_grid["_last_surface"] = [
             str((((horses[int(hidx)].get("_last_race") or {}).get("surface")) or ((horses[int(hidx)].get("_last_race") or {}).get("pist")) or ""))
             if str(hidx).strip().lstrip("-").isdigit() and 0 <= int(hidx) < len(horses) and isinstance(horses[int(hidx)], dict) else ""
@@ -4524,62 +4539,57 @@ def render():
                 root.style.height = '100%';
                 root.style.display = 'flex';
                 root.style.flexDirection = 'row';
-                root.style.flexWrap = 'wrap';
+                root.style.flexWrap = 'nowrap';
                 root.style.alignItems = 'center';
-                root.style.alignContent = 'center';
                 root.style.justifyContent = 'flex-start';
-                root.style.columnGap = '6px';
-                root.style.rowGap = '1px';
+                root.style.columnGap = '5px';
                 root.style.textAlign = 'left';
                 root.style.overflow = 'hidden';
+                root.style.whiteSpace = 'nowrap';
                 root.style.lineHeight = '1.05';
                 root.style.boxSizing = 'border-box';
 
-                const parts = String(params.value ?? '').split(/\r?\n/).filter(x => x !== '');
                 const name = document.createElement('span');
-                name.textContent = parts.length ? parts[0] : '';
-                name.style.color = '#101b59';
+                name.textContent = String(params.value ?? '');
+                name.style.color = '#071b69';
                 name.style.fontWeight = '900';
-                name.style.fontSize = '12.5px';
+                name.style.fontSize = '12px';
                 name.style.whiteSpace = 'nowrap';
                 name.style.flex = '0 1 auto';
                 name.style.minWidth = '0';
-                name.style.maxWidth = '100%';
                 name.style.overflow = 'hidden';
                 name.style.textOverflow = 'ellipsis';
                 root.appendChild(name);
 
-                // TJK takı kodları at adının hemen yanında, örnekteki gibi yeşil gösterilir.
-                if (parts.length > 1 && parts[1].trim()) {
-                    const gear = document.createElement('span');
-                    gear.textContent = parts.slice(1).join(' ');
-                    gear.style.color = '#d00000';
-                    gear.style.fontWeight = '900';
-                    gear.style.fontSize = '9px';
-                    gear.style.whiteSpace = 'normal';
-                    gear.style.flex = '0 0 auto';
-                    gear.style.maxWidth = '100%';
-                    root.appendChild(gear);
+                const horseNo = String((params.data && params.data._horse_no) ?? '').trim();
+                if (horseNo) {
+                    const result = document.createElement('span');
+                    result.style.whiteSpace = 'nowrap';
+                    result.style.flex = '0 0 auto';
+                    result.style.fontSize = '11px';
+                    result.style.fontWeight = '900';
+                    const left = document.createElement('span');
+                    left.textContent = '('; left.style.color = '#16833b';
+                    const number = document.createElement('span');
+                    number.textContent = horseNo; number.style.color = '#075b25';
+                    const right = document.createElement('span');
+                    right.textContent = ')'; right.style.color = '#16833b';
+                    result.appendChild(left); result.appendChild(number); result.appendChild(right);
+                    root.appendChild(result);
                 }
 
-                const result = String((params.data && params.data._race_finish) || '').trim();
-                if (result) {
-                    const wrap = document.createElement('span');
-                    wrap.style.fontSize = '10.5px';
-                    wrap.style.fontWeight = '900';
-                    wrap.style.whiteSpace = 'nowrap';
-                    wrap.style.flex = '0 0 auto';
-                    const m = result.match(/^\((.*?)\)$/);
-                    if (m) {
-                        const l = document.createElement('span'); l.textContent = '('; l.style.color = '#16833b';
-                        const v = document.createElement('span'); v.textContent = m[1]; v.style.color = '#07551f';
-                        const rr = document.createElement('span'); rr.textContent = ')'; rr.style.color = '#16833b';
-                        wrap.appendChild(l); wrap.appendChild(v); wrap.appendChild(rr);
-                    } else {
-                        wrap.textContent = result;
-                        wrap.style.color = '#07551f';
-                    }
-                    root.appendChild(wrap);
+                const gearText = String((params.data && params.data._horse_equipment) || '').trim();
+                if (gearText) {
+                    const gear = document.createElement('span');
+                    gear.textContent = gearText;
+                    gear.style.color = '#d00000';
+                    gear.style.fontWeight = '800';
+                    gear.style.fontSize = '9px';
+                    gear.style.whiteSpace = 'nowrap';
+                    gear.style.flex = '0 0 auto';
+                    gear.style.overflow = 'hidden';
+                    gear.style.textOverflow = 'clip';
+                    root.appendChild(gear);
                 }
                 this.eGui = root;
             }
@@ -4993,45 +5003,44 @@ def render():
         class FormRenderer {
             init(params) {
                 const root = document.createElement('div');
-                root.style.display = 'flex';
-                root.style.alignItems = 'center';
-                root.style.gap = '3px';
-                root.style.whiteSpace = 'nowrap';
                 root.style.width = '100%';
-                const text = String(params.value ?? '');
-                const surfaces = String((params.data && params.data._form_surfaces) || '').split('|');
-                const chars = Array.from(text).filter(ch => ch && ch !== '-');
-                chars.forEach((ch, i) => {
-                    const span = document.createElement('span');
-                    span.textContent = ch;
-                    span.style.display = 'inline-flex';
-                    span.style.alignItems = 'center';
-                    span.style.justifyContent = 'center';
-                    span.style.minWidth = '18px';
-                    span.style.height = '22px';
-                    span.style.padding = '0 4px';
-                    span.style.borderRadius = '4px';
-                    span.style.fontSize = '12px';
-                    span.style.fontWeight = '900';
-                    span.style.color = '#ffffff';
-                    span.style.boxSizing = 'border-box';
-                    const rawSurf = String(surfaces[i] || '').trim();
-                    const surf = rawSurf.toLowerCase()
-                        .replace(/ı/g,'i').replace(/ş/g,'s').replace(/ğ/g,'g')
-                        .replace(/ü/g,'u').replace(/ö/g,'o').replace(/ç/g,'c');
-                    if (/^(c|cim|grass|turf)(?:[:\s-]|$)/.test(surf) || surf.includes('cim') || surf.includes('grass') || surf.includes('turf')) {
-                        span.style.backgroundColor = '#168a3b';
-                    } else if (/^(k|kum|dirt)(?:[:\s-]|$)/.test(surf) || surf.includes('kum') || surf.includes('dirt')) {
-                        span.style.backgroundColor = '#a66a24';
-                    } else if (/^(s|sentetik|synthetic)(?:[:\s-]|$)/.test(surf) || surf.includes('sentetik') || surf.includes('synthetic') || surf.includes('polytrack') || surf.includes('fiber')) {
-                        span.style.backgroundColor = '#397bd6';
-                    } else {
-                        span.style.backgroundColor = '#687385';
-                    }
-                    root.appendChild(span);
+                root.style.display = 'flex';
+                root.style.flexDirection = 'row';
+                root.style.flexWrap = 'nowrap';
+                root.style.alignItems = 'center';
+                root.style.justifyContent = 'flex-start';
+                root.style.gap = '2px';
+                root.style.whiteSpace = 'nowrap';
+                const text = String(params.value ?? '').replace(/\s+/g, '');
+                const colors = {
+                    '1': '#168a3a',  // 1. sıra: yeşil
+                    '2': '#2878c7',  // 2. sıra: mavi
+                    '3': '#e58a16',  // 3. sıra: turuncu
+                    '4': '#e0b400',  // 4. sıra: sarı
+                    '5': '#777777',  // 5. sıra: gri
+                    '6': '#873fc4'   // 6. sıra: mor
+                };
+                Array.from(text).slice(0, 6).forEach(ch => {
+                    const chip = document.createElement('span');
+                    chip.textContent = ch;
+                    chip.style.display = 'inline-flex';
+                    chip.style.alignItems = 'center';
+                    chip.style.justifyContent = 'center';
+                    chip.style.width = '21px';
+                    chip.style.minWidth = '21px';
+                    chip.style.height = '23px';
+                    chip.style.boxSizing = 'border-box';
+                    chip.style.borderRadius = '5px';
+                    chip.style.backgroundColor = colors[ch] || '#777777';
+                    chip.style.color = '#ffffff';
+                    chip.style.fontSize = '12px';
+                    chip.style.fontWeight = '900';
+                    chip.style.lineHeight = '23px';
+                    root.appendChild(chip);
                 });
                 this.eGui = root;
             }
+            refresh(params) { return false; }
             getGui() { return this.eGui; }
         }
         """)
@@ -5363,7 +5372,7 @@ def render():
 
         # Sabit sütunlar.
         gb.configure_column("No", header_name="No", pinned="left", width=62, minWidth=55, maxWidth=75, type=["numericColumn"], cellStyle=JsCode("function(params){return {color:'#000000',fontWeight:'900'};}"))
-        gb.configure_column("At İsmi", header_name="At İsmi", pinned="left", width=220, minWidth=205, maxWidth=245, resizable=True, cellRenderer=horse_name_renderer, cellClass="ri-left-centered-cell")
+        gb.configure_column("At İsmi", header_name="At İsmi", pinned="left", width=270, minWidth=255, maxWidth=290, resizable=True, cellRenderer=horse_name_renderer, cellClass="ri-left-centered-cell")
         gb.configure_column("Yaş", width=55, minWidth=55, maxWidth=55, resizable=False, cellStyle=JsCode("function(params){return {color:'#000000',fontWeight:'900'};}"), cellClass="ri-left-centered-cell")
         gb.configure_column("Orijin (Baba-Anne)", width=155, minWidth=140, maxWidth=175, resizable=True, cellRenderer=origin_renderer, cellClass="ri-left-centered-cell")
         gb.configure_column("Kilo", width=75, minWidth=75, maxWidth=75, resizable=False, cellRenderer=weight_renderer, cellClass="ri-left-centered-cell")
@@ -5371,7 +5380,7 @@ def render():
         gb.configure_column("Sahip / Antrenör", width=140, minWidth=125, maxWidth=160, resizable=True, cellRenderer=owner_trainer_renderer, cellClass="ri-left-centered-cell")
         gb.configure_column("St", width=78, minWidth=78, maxWidth=78, resizable=False, cellRenderer=start_renderer, cellClass="ri-left-centered-cell")
         gb.configure_column("HP", width=58, minWidth=58, maxWidth=58, resizable=False, cellRenderer=hp_renderer, cellClass="ri-left-centered-cell")
-        gb.configure_column("Son 6 Y.", width=85, minWidth=85, maxWidth=85, resizable=False, cellRenderer=form_renderer, cellClass="ri-left-centered-cell")
+        gb.configure_column("Son 6 Y.", width=125, minWidth=125, maxWidth=125, resizable=False, cellRenderer=form_renderer, cellClass="ri-left-centered-cell")
         gb.configure_column("KGS", width=58, minWidth=58, maxWidth=58, resizable=False, cellRenderer=kgs_renderer, cellClass="ri-left-centered-cell")
         gb.configure_column("s20", width=58, minWidth=58, maxWidth=58, resizable=False, cellRenderer=compact_black_renderer, cellClass="ri-left-centered-cell", cellStyle=JsCode("function(params){return {color:'#0f766e',fontWeight:'900'};}"))
         gb.configure_column(
@@ -5630,6 +5639,8 @@ def render():
         gb.configure_column("_last_jockey", hide=True)
         gb.configure_column("_last_hp", hide=True)
         gb.configure_column("_race_finish", hide=True)
+        gb.configure_column("_horse_no", hide=True)
+        gb.configure_column("_horse_equipment", hide=True)
         gb.configure_column("_last_race_name", hide=True)
         gb.configure_column("_last_class", hide=True)
         gb.configure_column("_last_prize", hide=True)
