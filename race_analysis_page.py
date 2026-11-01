@@ -5026,16 +5026,16 @@ def render():
                     chip.style.display = 'inline-flex';
                     chip.style.alignItems = 'center';
                     chip.style.justifyContent = 'center';
-                    chip.style.width = '21px';
-                    chip.style.minWidth = '21px';
-                    chip.style.height = '23px';
+                    chip.style.width = '17px';
+                    chip.style.minWidth = '17px';
+                    chip.style.height = '18px';
                     chip.style.boxSizing = 'border-box';
                     chip.style.borderRadius = '5px';
                     chip.style.backgroundColor = colors[ch] || '#777777';
                     chip.style.color = '#ffffff';
-                    chip.style.fontSize = '12px';
+                    chip.style.fontSize = '10px';
                     chip.style.fontWeight = '900';
-                    chip.style.lineHeight = '23px';
+                    chip.style.lineHeight = '18px';
                     root.appendChild(chip);
                 });
                 this.eGui = root;
@@ -5248,7 +5248,7 @@ def render():
         selected_horse = None
 
         grid_options = {
-            "rowHeight": 54,
+            "rowHeight": 43,
             "headerHeight": 38,
             "domLayout": "autoHeight",
             "suppressRowClickSelection": True,
@@ -5372,7 +5372,7 @@ def render():
 
         # Sabit sütunlar.
         gb.configure_column("No", header_name="No", pinned="left", width=62, minWidth=55, maxWidth=75, type=["numericColumn"], cellStyle=JsCode("function(params){return {color:'#000000',fontWeight:'900'};}"))
-        gb.configure_column("At İsmi", header_name="At İsmi", pinned="left", width=270, minWidth=255, maxWidth=290, resizable=True, cellRenderer=horse_name_renderer, cellClass="ri-left-centered-cell")
+        gb.configure_column("At İsmi", header_name="At İsmi", pinned="left", width=216, minWidth=204, maxWidth=232, resizable=True, cellRenderer=horse_name_renderer, cellClass="ri-left-centered-cell")
         gb.configure_column("Yaş", width=55, minWidth=55, maxWidth=55, resizable=False, cellStyle=JsCode("function(params){return {color:'#000000',fontWeight:'900'};}"), cellClass="ri-left-centered-cell")
         gb.configure_column("Orijin (Baba-Anne)", width=155, minWidth=140, maxWidth=175, resizable=True, cellRenderer=origin_renderer, cellClass="ri-left-centered-cell")
         gb.configure_column("Kilo", width=75, minWidth=75, maxWidth=75, resizable=False, cellRenderer=weight_renderer, cellClass="ri-left-centered-cell")
