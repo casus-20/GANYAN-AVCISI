@@ -711,6 +711,14 @@ def render():
             raw,
         ).strip()
 
+        # Takı kodlarını isimden ayır; renderer bunları ayrı ve küçük kırmızı gösterir.
+        raw = re.sub(
+            r"\s+(?:(?:DB|KG|K|SKG|SK|GKR|G|D|B|H|TT|M|SGK)(?:\s+|$)){1,6}$",
+            "",
+            raw,
+            flags=re.I,
+        ).strip()
+
         return raw
 
 
@@ -4530,10 +4538,9 @@ def render():
                 const parts = String(params.value ?? '').split(/\r?\n/).filter(x => x !== '');
                 const name = document.createElement('span');
                 name.textContent = parts.length ? parts[0] : '';
-                // At adı lacivert; takı ve yarış sonucu ayrı span'lerde gösterilir.
-                name.style.color = '#071b69';
+                name.style.color = '#101b59';
                 name.style.fontWeight = '900';
-                name.style.fontSize = '12px';
+                name.style.fontSize = '12.5px';
                 name.style.whiteSpace = 'nowrap';
                 name.style.flex = '0 1 auto';
                 name.style.minWidth = '0';
@@ -4565,12 +4572,12 @@ def render():
                     const m = result.match(/^\((.*?)\)$/);
                     if (m) {
                         const l = document.createElement('span'); l.textContent = '('; l.style.color = '#16833b';
-                        const v = document.createElement('span'); v.textContent = m[1]; v.style.color = '#075b25';
+                        const v = document.createElement('span'); v.textContent = m[1]; v.style.color = '#07551f';
                         const rr = document.createElement('span'); rr.textContent = ')'; rr.style.color = '#16833b';
                         wrap.appendChild(l); wrap.appendChild(v); wrap.appendChild(rr);
                     } else {
                         wrap.textContent = result;
-                        wrap.style.color = '#126b2f';
+                        wrap.style.color = '#07551f';
                     }
                     root.appendChild(wrap);
                 }
@@ -4986,37 +4993,41 @@ def render():
         class FormRenderer {
             init(params) {
                 const root = document.createElement('div');
+                root.style.display = 'flex';
+                root.style.alignItems = 'center';
+                root.style.gap = '3px';
                 root.style.whiteSpace = 'nowrap';
-                root.style.fontWeight = '900';
+                root.style.width = '100%';
                 const text = String(params.value ?? '');
                 const surfaces = String((params.data && params.data._form_surfaces) || '').split('|');
-                const tokens = text.match(/\d+|[^\s]/g) || [];
-                tokens.forEach((ch, i) => {
+                const chars = Array.from(text).filter(ch => ch && ch !== '-');
+                chars.forEach((ch, i) => {
                     const span = document.createElement('span');
                     span.textContent = ch;
+                    span.style.display = 'inline-flex';
+                    span.style.alignItems = 'center';
+                    span.style.justifyContent = 'center';
+                    span.style.minWidth = '18px';
+                    span.style.height = '22px';
+                    span.style.padding = '0 4px';
+                    span.style.borderRadius = '4px';
+                    span.style.fontSize = '12px';
                     span.style.fontWeight = '900';
+                    span.style.color = '#ffffff';
+                    span.style.boxSizing = 'border-box';
                     const rawSurf = String(surfaces[i] || '').trim();
                     const surf = rawSurf.toLowerCase()
                         .replace(/ı/g,'i').replace(/ş/g,'s').replace(/ğ/g,'g')
                         .replace(/ü/g,'u').replace(/ö/g,'o').replace(/ç/g,'c');
-                    // Son 6 yarış sonucu, o yarışın pist türüne göre rozetlenir.
-                    // Çim=yeşil, kum=kahverengi/turuncu, sentetik=mavi; bilinmeyen=gri.
-                    let bg = '#777777';
-                    if (/^(c|cim|grass|turf)(?:[:\s-]|$)/.test(surf) || surf.includes('cim') || surf.includes('grass') || surf.includes('turf')) bg = '#168a3a';
-                    else if (/^(k|kum|dirt)(?:[:\s-]|$)/.test(surf) || surf.includes('kum') || surf.includes('dirt')) bg = '#b86a1b';
-                    else if (/^(s|sentetik|synthetic)(?:[:\s-]|$)/.test(surf) || surf.includes('sentetik') || surf.includes('synthetic') || surf.includes('polytrack') || surf.includes('fiber')) bg = '#2878c7';
-                    span.style.display = 'inline-flex';
-                    span.style.alignItems = 'center';
-                    span.style.justifyContent = 'center';
-                    span.style.minWidth = '15px';
-                    span.style.height = '20px';
-                    span.style.padding = '0 4px';
-                    span.style.marginRight = '2px';
-                    span.style.borderRadius = '4px';
-                    span.style.backgroundColor = bg;
-                    span.style.color = '#ffffff';
-                    span.style.fontSize = '11px';
-                    span.style.lineHeight = '20px';
+                    if (/^(c|cim|grass|turf)(?:[:\s-]|$)/.test(surf) || surf.includes('cim') || surf.includes('grass') || surf.includes('turf')) {
+                        span.style.backgroundColor = '#168a3b';
+                    } else if (/^(k|kum|dirt)(?:[:\s-]|$)/.test(surf) || surf.includes('kum') || surf.includes('dirt')) {
+                        span.style.backgroundColor = '#a66a24';
+                    } else if (/^(s|sentetik|synthetic)(?:[:\s-]|$)/.test(surf) || surf.includes('sentetik') || surf.includes('synthetic') || surf.includes('polytrack') || surf.includes('fiber')) {
+                        span.style.backgroundColor = '#397bd6';
+                    } else {
+                        span.style.backgroundColor = '#687385';
+                    }
                     root.appendChild(span);
                 });
                 this.eGui = root;
