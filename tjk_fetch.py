@@ -980,21 +980,53 @@ def _TJK_result_matches_target(data: Dict[str, Any], target_date: str, requested
 
 
 def get_active_cities(date_value: Any) -> List[str]:
+    """Seçilen tarihte gerçekten koşusu bulunan hipodromları döndürür.
+
+    TJK günlük program ana sayfasındaki hipodrom linkleri zaman zaman HTML
+    yapısı/URL biçimi değiştiği için ayrıştırılamayabiliyor. Eski davranışta
+    bu durumda doğrudan [] dönülüyor ve Yarış Analizi ekranı hiç açılmıyordu.
+    Önce dinamik linkler keşfedilir; ardından bilinen yerli hipodromlar da
+    aday havuzuna eklenir. Her aday yine _fetch_tjk_daily ile tarih, hipodrom
+    kimliği ve gerçek yarış tablosu doğrulamasından geçer. Böylece sabit liste
+    ekranda gösterilmez; yalnızca seçilen tarihte programı bulunanlar döner.
+    Dinamik keşfedilen yabancı hipodromlar da korunur.
+    """
     target = normalize_date(date_value)
-    # Kaynak yalnızca kullanıcının belirttiği TJK günlük program ana sayfasıdır.
-    # Sabit yerli hipodrom listesi eklenmez; sayfanın verdiği tüm yerli/yabancı
-    # hipodrom bağlantıları tek tek doğrulanır.
-    candidates = _discover_tjk_venues(target, timeout=25)
+
+    discovered = _discover_tjk_venues(target, timeout=25) or []
+
+    # Dinamik keşif TJK sayfa değişikliği nedeniyle boş/kısmi kalırsa yerli
+    # hipodromları doğrudan kendi TJK şehir ID'leriyle doğrula.
+    candidates = []
+    seen = set()
+    for city in list(discovered) + list(CITY_IDS.keys()):
+        canonical = _canonical_city_name(city)
+        key = _fold_tr(canonical)
+        if key and key not in seen:
+            seen.add(key)
+            candidates.append(canonical)
+
     if not candidates:
         return []
+
     def check(city):
         try:
-            data = _fetch_tjk_daily(target, city, timeout=25)
-            return city if data.get("races") else None
+            data = _fetch_tjk_daily(target, city, timeout=35)
+            races = data.get("races") if isinstance(data, dict) else None
+            # Sadece seçilen tarih/hipodrom doğrulamasından geçmiş ve en az
+            # bir gerçek koşu tablosu içeren sonuçlar aktif kabul edilir.
+            if isinstance(races, list) and races:
+                return city
         except Exception:
             return None
+        return None
+
     with ThreadPoolExecutor(max_workers=6) as executor:
-        return [x for x in executor.map(check, candidates) if x]
+        active = [city for city in executor.map(check, candidates) if city]
+
+    # Sıralamayı TJK'nın dinamik sayfa sırasına göre koru; fallback şehirler
+    # ise CITY_IDS tanım sırasıyla listenin devamına eklenir.
+    return active
 
 
 def TJK_health() -> Dict[str, Any]:
