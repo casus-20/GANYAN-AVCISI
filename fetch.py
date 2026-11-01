@@ -225,32 +225,77 @@ def _tjk_parse_horse_tables(html):
             "past_runs":[],"gallops":[]}
     return result
 
+@__import__("functools").lru_cache(maxsize=32)
 def get_tjk_race_program(date_text):
-    """TJK resmi Günlük Yarış Programı sayfasından DD/MM/YYYY tarihli programı alır."""
+    """TJK günlük programını tarih başına bir kez indirir; hipodrom sayfalarını paralel okur."""
     import requests
+    from concurrent.futures import ThreadPoolExecutor
     from urllib.parse import urljoin
-    base="https://www.tjk.org/TR/Kurumsal/Info/Page/GunlukYarisProgrami"
-    session=requests.Session()
-    session.headers.update({"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36","Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8","Accept-Language":"tr-TR,tr;q=0.9,en-US;q=0.7","Referer":"https://www.tjk.org/"})
-    response=session.get(base,params={"QueryParameter_Tarih":date_text},timeout=30); response.raise_for_status()
-    response.encoding=response.apparent_encoding or "utf-8"
-    links=_tjk_city_links(response.text,response.url)
-    if not links: raise RuntimeError("TJK sayfasında seçilen tarihe ait hipodrom bağlantıları bulunamadı.")
-    tracks=[]; races_by_track={}; details={}
-    for city,url in links.items():
-        try:
-            page=session.get(url,timeout=30); page.raise_for_status(); page.encoding=page.apparent_encoding or "utf-8"
-            parsed=_tjk_parse_horse_tables(page.text)
-            if not parsed: continue
-            tracks.append(city); races=[]
-            for no in sorted(parsed):
-                detail=parsed[no]; race=dict(detail["race"]); race["track"]=city
-                races.append(race); details[f"{city}|{no}"]={k:v for k,v in detail.items() if k!="race"}
-            races_by_track[city]=races
-        except requests.RequestException:
+
+    base = "https://www.tjk.org/TR/Kurumsal/Info/Page/GunlukYarisProgrami"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.7",
+        "Referer": "https://www.tjk.org/",
+    }
+
+    # Ana sayfa yalnızca bir kez alınır; hipodrom listesi bunun içinden çıkarılır.
+    with requests.Session() as session:
+        session.headers.update(headers)
+        response = session.get(base, params={"QueryParameter_Tarih": date_text}, timeout=(6, 20))
+        response.raise_for_status()
+        response.encoding = response.apparent_encoding or "utf-8"
+        links = _tjk_city_links(response.text, response.url)
+
+    if not links:
+        raise RuntimeError("TJK sayfasında seçilen tarihe ait hipodrom bağlantıları bulunamadı.")
+
+    def fetch_city(item):
+        city, url = item
+        # requests.Session nesnesi thread'ler arasında paylaşılmaz.
+        with requests.Session() as city_session:
+            city_session.headers.update(headers)
+            last_error = None
+            for attempt in range(2):
+                try:
+                    page = city_session.get(url, timeout=(6, 20))
+                    page.raise_for_status()
+                    page.encoding = page.apparent_encoding or "utf-8"
+                    parsed = _tjk_parse_horse_tables(page.text)
+                    if not parsed:
+                        return city, None
+                    races = []
+                    details = {}
+                    for no in sorted(parsed):
+                        detail = parsed[no]
+                        race = dict(detail["race"])
+                        race["track"] = city
+                        races.append(race)
+                        details[f"{city}|{no}"] = {k: v for k, v in detail.items() if k != "race"}
+                    return city, (races, details)
+                except requests.RequestException as exc:
+                    last_error = exc
+            raise RuntimeError(f"TJK {city} sayfası alınamadı: {last_error}")
+
+    # Şehir sayfalarını seri beklemek yerine eşzamanlı indir. Sonuçlar link sırasıyla birleştirilir.
+    items = list(links.items())
+    with ThreadPoolExecutor(max_workers=min(8, len(items))) as pool:
+        results = list(pool.map(fetch_city, items))
+
+    tracks, races_by_track, details = [], {}, {}
+    errors = []
+    for city, payload in results:
+        if payload is None:
             continue
-    if not tracks: raise RuntimeError("TJK sayfasına erişildi ancak seçilen tarihin koşu tabloları okunamadı.")
-    return {"tracks":tracks,"races_by_track":races_by_track,"details":details}
+        races, city_details = payload
+        tracks.append(city)
+        races_by_track[city] = races
+        details.update(city_details)
+
+    if not tracks:
+        raise RuntimeError("TJK sayfasına erişildi ancak seçilen tarihin koşu tabloları okunamadı.")
+    return {"tracks": tracks, "races_by_track": races_by_track, "details": details}
 
 
 @__import__("functools").lru_cache(maxsize=512)
