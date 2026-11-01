@@ -1,5 +1,4 @@
 
-"""Demo veri katmanı. Gerçek veri bağlantıları sonraki aşamada eklenecek."""
 from copy import deepcopy
 import re
 
